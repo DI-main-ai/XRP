@@ -48,11 +48,13 @@ tab1, tab2 = st.tabs(["📈 Rich List Charts", "📋 Current Statistics"])
 
 with tab1:
     # 1. Find all CSVs in this directory
-    exclude_files = [
-        "Number of Accounts and Sum of Balance Range.csv",
-        "Percentage of Accounts with Balances Greater Than or Equal to.csv"
+    csv_files = [
+        f for f in os.listdir('.')
+        if f.endswith('.csv')
+           and not f.lower().startswith('number of accounts')
+           and not f.lower().startswith('percentage of accounts')
+           and not f.lower().startswith('current_stats')
     ]
-    csv_files = [f for f in os.listdir('.') if f.endswith('.csv') and f not in exclude_files]
 
     if not csv_files:
         st.error("No CSV files found in this folder!")
