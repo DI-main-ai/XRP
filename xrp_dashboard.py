@@ -69,16 +69,19 @@ def format_stats_table(df, table_name):
     return df
 
 def clean_stat_df(df):
-    # Remove any repeated header rows
-    # If first row is all strings and matches columns, drop it
-    if df.shape[0] > 1 and all(
-        str(df.iloc[0, c]).strip().lower() == str(df.columns[c]).strip().lower()
-        for c in range(len(df.columns))
-    ):
-        df = df.iloc[1:].reset_index(drop=True)
-    else:
-        df = df.reset_index(drop=True)
+    # Remove any row that matches the headers (extra header rows in middle of CSV)
+    header_set = set(str(x).strip().lower() for x in df.columns)
+    mask = []
+    for i, row in df.iterrows():
+        row_set = set(str(x).strip().lower() for x in row)
+        # If row matches at least 2 header names, mark as header row
+        if len(header_set & row_set) >= min(2, len(header_set)):
+            mask.append(False)
+        else:
+            mask.append(True)
+    df = df[mask].reset_index(drop=True)
     return df
+
 
 # ---- MAIN TABS ----
 tab1, tab2 = st.tabs(["📈 Rich List Charts", "📋 Current Statistics"])
@@ -160,9 +163,8 @@ with tab2:
             found_any = True
             st.subheader(pretty_name(csv_name.replace('.csv', '')))
             stat_df = pd.read_csv(csv_name)
-            stat_df = clean_stat_df(stat_df)
+            stat_df = clean_stat_df(stat_df)  # THIS IS THE KEY LINE
             stat_df = format_stats_table(stat_df, csv_name)
-            # Show table with no row index
             st.table(stat_df)
             st.download_button(
                 label=f"Download {csv_name}",
@@ -172,6 +174,7 @@ with tab2:
             )
     if not found_any:
         st.info("No Current Statistics CSVs found. Please add them to the folder.")
+
 
 # ---- OPTIONAL TIP JAR ----
 st.sidebar.markdown("---")
