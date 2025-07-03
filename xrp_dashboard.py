@@ -4,7 +4,39 @@ import plotly.express as px
 import os
 import numpy as np
 
+# ----- DARK THEME INJECT -----
 st.set_page_config(page_title="XRP Rich List Dashboard", layout="wide")
+
+# For Streamlit Cloud, enforce dark mode
+st.markdown("""
+    <style>
+    html, body, [data-testid="stAppViewContainer"] {
+        background-color: #1e222d !important;
+        color: #F1F1F1 !important;
+    }
+    .stApp { background-color: #1e222d !important; }
+    table, th, td {
+        background-color: #25293c !important;
+        color: #fff !important;
+        border-color: #333 !important;
+    }
+    thead tr th { 
+        white-space: pre-line !important; 
+        word-break: break-word !important;
+        font-size: 13px !important;
+        background: #222235 !important;
+        color: #fafbfc !important;
+        border-bottom: 2px solid #333 !important;
+    }
+    .css-1v0mbdj, .st-bb, .st-cq { background-color: #222235 !important; }
+    .css-1n76uvr { color: #fff !important; }
+    /* Download button tweaks */
+    .stDownloadButton > button { background: #3d4053 !important; color: #fff; }
+    /* Scrollbar for dataframes */
+    ::-webkit-scrollbar { width: 9px; background: #232334; }
+    ::-webkit-scrollbar-thumb { background: #37374f; border-radius: 4px;}
+    </style>
+    """, unsafe_allow_html=True)
 
 st.title("📊 XRP Rich List Interactive Dashboard")
 
@@ -28,7 +60,6 @@ def format_millions(val):
         return f"{v:,}"
 
 def shorten_col(col):
-    # Shorten or wrap long column names for better display
     if len(col) > 30:
         words = col.split()
         mid = len(words) // 2
@@ -36,9 +67,7 @@ def shorten_col(col):
     return col
 
 def format_stats_table(df, table_name):
-    # Clean up column names for display
     df.columns = [shorten_col(str(col)) for col in df.columns]
-    # Format numeric columns with commas
     for col in df.columns:
         if (
             "sum" in col.lower()
@@ -50,7 +79,6 @@ def format_stats_table(df, table_name):
             for val in df[col]:
                 valstr = str(val)
                 if "xrp" in valstr.lower():
-                    # Remove XRP, format, add back XRP
                     val2 = valstr.replace("XRP", "").replace(",", "").strip()
                     try:
                         val_num = float(val2)
@@ -69,28 +97,23 @@ def format_stats_table(df, table_name):
     return df
 
 def clean_stat_df(df):
-    # Remove any row that matches the headers (extra header rows in middle of CSV)
-    header_set = set(str(x).strip().lower() for x in df.columns)
-    mask = []
-    for i, row in df.iterrows():
-        row_set = set(str(x).strip().lower() for x in row)
-        # If row matches at least 2 header names, mark as header row
-        if len(header_set & row_set) >= min(2, len(header_set)):
-            mask.append(False)
-        else:
-            mask.append(True)
-    df = df[mask].reset_index(drop=True)
-    return df
+    # Remove duplicate headers and blank rows
+    col_headers = [str(c).strip().lower() for c in df.columns]
+    def is_duplicate_header(row):
+        values = [str(x).strip().lower() for x in row]
+        return values == col_headers or all(val in col_headers for val in values)
+    df_clean = df[~df.apply(is_duplicate_header, axis=1)].reset_index(drop=True)
+    # Remove empty rows
+    df_clean = df_clean[~df_clean.isnull().all(axis=1)]
+    return df_clean
 
 COLUMN_NAME_MAP = {
     "-- Number of accounts and sum of balance range": "Accounts\nFrom–To",
     "-- Number of accounts and sum of balance range.1": "Balance Range\n(XRP)",
     "-- Number of accounts and sum of balance range.2": "Total in\nRange (XRP)",
-    # For the second table, add more as needed
 }
 
 def rename_columns(df):
-    # Rename columns using the map; fallback to auto-wrap if needed
     new_cols = []
     for col in df.columns:
         if col in COLUMN_NAME_MAP:
@@ -105,73 +128,9 @@ def rename_columns(df):
     return df
 
 # ---- MAIN TABS ----
-tab1, tab2 = st.tabs(["📈 Rich List Charts", "📋 Current Statistics"])
+# Show Current Statistics first, then Rich List Charts second
+tab2, tab1 = st.tabs(["📋 Current Statistics", "📈 Rich List Charts"])
 
-with tab1:
-    csv_files = [
-        f for f in os.listdir('.')
-        if f.endswith('.csv')
-           and not f.lower().startswith('number of accounts')
-           and not f.lower().startswith('percentage of accounts')
-           and not f.lower().startswith('current_stats')
-    ]
-
-    if not csv_files:
-        st.error("No CSV files found in this folder!")
-        st.stop()
-
-    csv_choice = st.sidebar.selectbox(
-        "Choose a data range/table:",
-        sorted(csv_files, key=pretty_name),
-        format_func=pretty_name
-    )
-
-    df = pd.read_csv(csv_choice)
-    date_col = None
-    for col in df.columns:
-        if 'date' in col.lower():
-            date_col = col
-            break
-
-    if date_col is not None:
-        df[date_col] = pd.to_datetime(df[date_col]).dt.date
-        df = df.groupby(date_col, as_index=False)['value'].sum()
-    else:
-        st.warning("No 'date' column found! Chart x-axis may not be time-based.")
-
-    st.subheader(f"Chart: {pretty_name(csv_choice)}")
-    fig = px.line(
-        df,
-        x=date_col if date_col else df.columns[0],
-        y='value',
-        markers=True,
-    )
-    fig.update_traces(line=dict(width=3))
-    fig.update_yaxes(tickformat=",", title="XRP")
-    fig.update_layout(
-        xaxis_title="Date",
-        yaxis_tickformat=",",
-        hovermode="x unified",
-        hoverlabel=dict(namelength=-1),
-    )
-    st.plotly_chart(fig, use_container_width=True)
-
-    with st.expander("Show Data Table"):
-        st.dataframe(
-            df.style.format({"value": format_millions}),
-            use_container_width=True
-        )
-
-    st.download_button(
-        label="Download this table as CSV",
-        data=df.to_csv(index=False).encode(),
-        file_name=csv_choice,
-        mime='text/csv',
-    )
-
-    st.caption("Touch, zoom, and pan the chart. Made for XRP data nerds! 🚀")
-
-# ---- CURRENT STATISTICS ----
 with tab2:
     st.header("Current XRP Ledger Statistics")
     stats_csvs = [
@@ -179,14 +138,6 @@ with tab2:
         "Percentage of Accounts with Balances Greater Than or Equal to.csv"
     ]
     found_any = False
-
-    # Optional CSS for extra header wrapping (for st.dataframe, not needed for st.table)
-    st.markdown("""
-        <style>
-        thead tr th { white-space: pre-line !important; word-break: break-word !important; font-size: 13px !important;}
-        </style>
-        """, unsafe_allow_html=True)
-
     for csv_name in stats_csvs:
         if os.path.exists(csv_name):
             found_any = True
@@ -195,20 +146,10 @@ with tab2:
             stat_df = clean_stat_df(stat_df)
             stat_df = format_stats_table(stat_df, csv_name)
             stat_df = rename_columns(stat_df)
-            # Show table with NO row index and full width, no scrollbars
             st.dataframe(stat_df, use_container_width=True, hide_index=True)
-            # Use st.table for no scroll and full visibility!
             st.download_button(
                 label=f"Download {csv_name}",
                 data=stat_df.to_csv(index=False).encode(),
                 file_name=csv_name,
                 mime='text/csv',
             )
-    if not found_any:
-        st.info("No Current Statistics CSVs found. Please add them to the folder.")
-
-
-# ---- OPTIONAL TIP JAR ----
-st.sidebar.markdown("---")
-st.sidebar.markdown("💡 **Like this project?**")
-st.sidebar.markdown("Send XRP tips to: `YOUR_XRP_WALLET_ADDRESS`")
