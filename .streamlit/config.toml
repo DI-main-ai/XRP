@@ -1,5 +1,5 @@
 [ui]
-sidebarMode = "collapsed"
+initial_sidebar_state="collapsed"
 
 [theme]
 base="dark"
