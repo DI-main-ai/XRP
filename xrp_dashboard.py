@@ -191,10 +191,8 @@ with tab2:
         if os.path.exists(csv_name):
             found_any = True
             st.subheader(pretty_name(csv_name.replace('.csv', '')))
-            stat_df = pd.read_csv(csv_name)
-            stat_df = clean_stat_df(stat_df)
-            stat_df = format_stats_table(stat_df, csv_name)
-            stat_df = rename_columns(stat_df)
+            stat_df = stat_df.copy()
+            stat_df.index = [""] * len(stat_df)
             st.table(stat_df)  # Use st.table for no scroll and full visibility!
             st.download_button(
                 label=f"Download {csv_name}",
