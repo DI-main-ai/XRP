@@ -4,6 +4,7 @@ import plotly.express as px
 import os
 import requests
 from bs4 import BeautifulSoup
+import numpy as np
 
 st.set_page_config(page_title="XRP Rich List Dashboard", layout="wide")
 
@@ -119,10 +120,55 @@ with tab1:
 
     st.caption("Touch, zoom, and pan the chart. Made for XRP data nerds! 🚀")
 
+
+
+def shorten_col(col):
+    # Shorten or wrap long column names for better display
+    if len(col) > 28:
+        # Insert line break at spaces near the middle
+        words = col.split()
+        mid = len(words) // 2
+        return " ".join(words[:mid]) + "\n" + " ".join(words[mid:])
+    return col
+
+def format_stats_table(df, table_name):
+    # Clean up column names for display
+    df.columns = [shorten_col(col) for col in df.columns]
+    # Format numeric columns with commas
+    for col in df.columns:
+        # Find columns likely to be numeric or ending in XRP
+        if (
+            "sum" in col.lower()
+            or "accounts" in col.lower()
+            or "balance" in col.lower()
+            or "equals" in col.lower()
+        ):
+            # Try to convert to float and format, ignoring errors
+            new_vals = []
+            for val in df[col]:
+                # Remove XRP label and commas if present
+                if isinstance(val, str):
+                    val2 = val.replace("XRP", "").replace(",", "").strip()
+                    try:
+                        val_num = float(val2)
+                        formatted = f"{val_num:,.0f}"
+                        if "xrp" in val.lower():
+                            formatted += " XRP"
+                        new_vals.append(formatted)
+                    except Exception:
+                        new_vals.append(val)
+                else:
+                    try:
+                        formatted = f"{val:,.0f}"
+                        new_vals.append(formatted)
+                    except Exception:
+                        new_vals.append(val)
+            df[col] = new_vals
+    return df
+
 with tab2:
     st.header("Current XRP Ledger Statistics")
 
-    # List of your exact stats table filenames
     stats_csvs = [
         "Number of Accounts and Sum of Balance Range.csv",
         "Percentage of Accounts with Balances Greater Than or Equal to.csv"
@@ -134,10 +180,10 @@ with tab2:
             found_any = True
             st.subheader(pretty_name(csv_name.replace('.csv', '')))
             stat_df = pd.read_csv(csv_name)
-            st.dataframe(
-                stat_df.style.format(lambda v: format_millions(v) if pd.api.types.is_number(v) else v),
-                use_container_width=True
-            )
+            # Format the stats table as described above
+            stat_df = format_stats_table(stat_df, csv_name)
+            # Show the entire table (no scrollbars)
+            st.table(stat_df)
             st.download_button(
                 label=f"Download {csv_name}",
                 data=stat_df.to_csv(index=False).encode(),
@@ -146,6 +192,7 @@ with tab2:
             )
     if not found_any:
         st.info("No Current Statistics CSVs found. Please add them to the folder.")
+
 
 
 # Optional: Tip button or link
