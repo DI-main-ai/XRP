@@ -5,7 +5,7 @@ import os
 import numpy as np
 
 # ----- DARK THEME INJECT -----
-st.set_page_config(page_title="XRP Rich List Dashboard", layout="wide")
+st.set_page_config(page_title="XRP Rich List Dashboard", initial_sidebar_state="collapsed", layout="wide")
 
 
 
