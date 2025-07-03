@@ -7,6 +7,8 @@ import numpy as np
 # ----- DARK THEME INJECT -----
 st.set_page_config(page_title="XRP Rich List Dashboard", layout="wide")
 
+
+
 # For Streamlit Cloud, enforce dark mode
 st.markdown("""
     <style>
@@ -15,28 +17,59 @@ st.markdown("""
         color: #F1F1F1 !important;
     }
     .stApp { background-color: #1e222d !important; }
-    table, th, td {
-        background-color: #25293c !important;
-        color: #fff !important;
-        border-color: #333 !important;
+    /* Dataframes, tables, and headers */
+    .stDataFrame, .stTable, .stMarkdown, .stCaption, .css-1n76uvr {
+        background-color: #232334 !important;
+        color: #f3f4f6 !important;
     }
-    thead tr th { 
-        white-space: pre-line !important; 
-        word-break: break-word !important;
-        font-size: 13px !important;
-        background: #222235 !important;
+    thead tr th, .stDataFrame thead {
+        background: #232334 !important;
         color: #fafbfc !important;
         border-bottom: 2px solid #333 !important;
     }
-    .css-1v0mbdj, .st-bb, .st-cq { background-color: #222235 !important; }
-    .css-1n76uvr { color: #fff !important; }
+    .stDataFrame tbody, .stTable tbody, .stDataFrame tr, .stTable tr {
+        background-color: #232334 !important;
+        color: #f3f4f6 !important;
+    }
+    .stDataFrame td, .stTable td {
+        background-color: #232334 !important;
+        color: #f3f4f6 !important;
+        border-color: #333 !important;
+    }
+    /* Sidebar and widgets */
+    .css-1544g2n, .css-1v0mbdj, .css-1hynsf2, .st-cq, .st-bb, .stSidebar, .stDropdown, .stSelectbox, .stTextInput, .stNumberInput {
+        background-color: #232334 !important;
+        color: #F1F1F1 !important;
+    }
+    /* Dropdown tweaks */
+    .stSelectbox div[data-baseweb="select"] {
+        background-color: #232334 !important;
+        color: #F1F1F1 !important;
+    }
+    .stSelectbox [data-testid="stSelectbox"] {
+        background-color: #232334 !important;
+        color: #F1F1F1 !important;
+    }
+    /* Dropdown menu options */
+    .css-1g6gooi, .css-1d391kg {
+        background-color: #232334 !important;
+        color: #F1F1F1 !important;
+    }
     /* Download button tweaks */
     .stDownloadButton > button { background: #3d4053 !important; color: #fff; }
+    /* Sidebar font */
+    .sidebar-content, .stSidebar {
+        color: #F1F1F1 !important;
+        background-color: #232334 !important;
+    }
+    /* Force icon colors */
+    .stMarkdown svg { color: #E7E7E7 !important; }
     /* Scrollbar for dataframes */
     ::-webkit-scrollbar { width: 9px; background: #232334; }
     ::-webkit-scrollbar-thumb { background: #37374f; border-radius: 4px;}
     </style>
     """, unsafe_allow_html=True)
+
 
 st.title("📊 XRP Rich List Interactive Dashboard")
 
