@@ -165,7 +165,7 @@ with tab2:
             stat_df = pd.read_csv(csv_name)
             stat_df = clean_stat_df(stat_df)  # THIS IS THE KEY LINE
             stat_df = format_stats_table(stat_df, csv_name)
-            st.table(stat_df)
+            st.dataframe(stat_df, use_container_width=True, hide_index=True)
             st.download_button(
                 label=f"Download {csv_name}",
                 data=stat_df.to_csv(index=False).encode(),
