@@ -115,19 +115,32 @@ with tab1:
 
 with tab2:
     st.header("Current XRP Ledger Statistics")
-    try:
-        stats_tables = get_current_statistics_tables()
-        if not stats_tables:
-            st.info("No Current Statistics tables found on rich-list.info.")
-        else:
-            for i, stat_df in enumerate(stats_tables):
-                st.subheader(f"Statistics Table {i+1}")
-                st.dataframe(
-                    stat_df.style.format(lambda v: format_millions(v) if pd.api.types.is_number(v) else v),
-                    use_container_width=True
-                )
-    except Exception as e:
-        st.error(f"Error fetching tables: {e}")
+
+    # List of your exact stats table filenames
+    stats_csvs = [
+        "Number of Accounts and Sum of Balance Range.csv",
+        "Percentage of Accounts with Balances Greater Than or Equal to.csv"
+    ]
+    found_any = False
+
+    for csv_name in stats_csvs:
+        if os.path.exists(csv_name):
+            found_any = True
+            st.subheader(pretty_name(csv_name.replace('.csv', '')))
+            stat_df = pd.read_csv(csv_name)
+            st.dataframe(
+                stat_df.style.format(lambda v: format_millions(v) if pd.api.types.is_number(v) else v),
+                use_container_width=True
+            )
+            st.download_button(
+                label=f"Download {csv_name}",
+                data=stat_df.to_csv(index=False).encode(),
+                file_name=csv_name,
+                mime='text/csv',
+            )
+    if not found_any:
+        st.info("No Current Statistics CSVs found. Please add them to the folder.")
+
 
 # Optional: Tip button or link
 st.sidebar.markdown("---")
