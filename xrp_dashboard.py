@@ -180,9 +180,14 @@ with tab2:
             found_any = True
             st.subheader(pretty_name(csv_name.replace('.csv', '')))
             stat_df = pd.read_csv(csv_name)
-            # Format the stats table as described above
+
+            # If first row is duplicate headers, remove it
+            if stat_df.iloc[0].str.contains("Account", case=False).any():
+                stat_df = stat_df.iloc[1:].reset_index(drop=True)
+            else:
+                stat_df = stat_df.reset_index(drop=True)
+
             stat_df = format_stats_table(stat_df, csv_name)
-            # Show the entire table (no scrollbars)
             st.table(stat_df)
             st.download_button(
                 label=f"Download {csv_name}",
@@ -190,6 +195,7 @@ with tab2:
                 file_name=csv_name,
                 mime='text/csv',
             )
+
     if not found_any:
         st.info("No Current Statistics CSVs found. Please add them to the folder.")
 
