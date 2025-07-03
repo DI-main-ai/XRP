@@ -153,3 +153,76 @@ with tab2:
                 file_name=csv_name,
                 mime='text/csv',
             )
+    if not found_any:
+        st.info("No Current Statistics CSVs found. Please add them to the folder.")
+
+with tab1:
+    csv_files = [
+        f for f in os.listdir('.')
+        if f.endswith('.csv')
+           and not f.lower().startswith('number of accounts')
+           and not f.lower().startswith('percentage of accounts')
+           and not f.lower().startswith('current_stats')
+    ]
+    if not csv_files:
+        st.error("No CSV files found in this folder!")
+        st.stop()
+
+    csv_choice = st.sidebar.selectbox(
+        "Choose a data range/table:",
+        sorted(csv_files, key=pretty_name),
+        format_func=pretty_name
+    )
+
+    df = pd.read_csv(csv_choice)
+    date_col = None
+    for col in df.columns:
+        if 'date' in col.lower():
+            date_col = col
+            break
+
+    if date_col is not None:
+        df[date_col] = pd.to_datetime(df[date_col]).dt.date
+        df = df.groupby(date_col, as_index=False)['value'].sum()
+    else:
+        st.warning("No 'date' column found! Chart x-axis may not be time-based.")
+
+    st.subheader(f"Chart: {pretty_name(csv_choice)}")
+    fig = px.line(
+        df,
+        x=date_col if date_col else df.columns[0],
+        y='value',
+        markers=True,
+    )
+    fig.update_traces(line=dict(width=3))
+    fig.update_yaxes(tickformat=",", title="XRP")
+    fig.update_layout(
+        xaxis_title="Date",
+        yaxis_tickformat=",",
+        hovermode="x unified",
+        hoverlabel=dict(namelength=-1),
+        plot_bgcolor='#1e222d',
+        paper_bgcolor='#1e222d',
+        font=dict(color='#F1F1F1'),
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+    with st.expander("Show Data Table"):
+        st.dataframe(
+            df.style.format({"value": format_millions}),
+            use_container_width=True
+        )
+
+    st.download_button(
+        label="Download this table as CSV",
+        data=df.to_csv(index=False).encode(),
+        file_name=csv_choice,
+        mime='text/csv',
+    )
+
+    st.caption("Touch, zoom, and pan the chart. Made for XRP data nerds! 🚀")
+
+# ---- OPTIONAL TIP JAR ----
+st.sidebar.markdown("---")
+st.sidebar.markdown("💡 **Like this project?**")
+st.sidebar.markdown("Send XRP tips to: `YOUR_XRP_WALLET_ADDRESS`")
