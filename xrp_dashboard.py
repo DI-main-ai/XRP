@@ -82,6 +82,27 @@ def clean_stat_df(df):
     df = df[mask].reset_index(drop=True)
     return df
 
+COLUMN_NAME_MAP = {
+    "-- Number of accounts and sum of balance range": "Accounts\nFrom–To",
+    "-- Number of accounts and sum of balance range.1": "Balance Range\n(XRP)",
+    "-- Number of accounts and sum of balance range.2": "Total in\nRange (XRP)",
+    # For the second table, add more as needed
+}
+
+def rename_columns(df):
+    # Rename columns using the map; fallback to auto-wrap if needed
+    new_cols = []
+    for col in df.columns:
+        if col in COLUMN_NAME_MAP:
+            new_cols.append(COLUMN_NAME_MAP[col])
+        elif len(col) > 20:
+            words = col.split()
+            mid = len(words)//2
+            new_cols.append(" ".join(words[:mid]) + "\n" + " ".join(words[mid:]))
+        else:
+            new_cols.append(col)
+    df.columns = new_cols
+    return df
 
 # ---- MAIN TABS ----
 tab1, tab2 = st.tabs(["📈 Rich List Charts", "📋 Current Statistics"])
@@ -158,14 +179,23 @@ with tab2:
         "Percentage of Accounts with Balances Greater Than or Equal to.csv"
     ]
     found_any = False
+
+    # Optional CSS for extra header wrapping (for st.dataframe, not needed for st.table)
+    st.markdown("""
+        <style>
+        thead tr th { white-space: pre-line !important; word-break: break-word !important; font-size: 13px !important;}
+        </style>
+        """, unsafe_allow_html=True)
+
     for csv_name in stats_csvs:
         if os.path.exists(csv_name):
             found_any = True
             st.subheader(pretty_name(csv_name.replace('.csv', '')))
             stat_df = pd.read_csv(csv_name)
-            stat_df = clean_stat_df(stat_df)  # THIS IS THE KEY LINE
+            stat_df = clean_stat_df(stat_df)
             stat_df = format_stats_table(stat_df, csv_name)
-            st.dataframe(stat_df, use_container_width=True, hide_index=True)
+            stat_df = rename_columns(stat_df)
+            st.table(stat_df)  # Use st.table for no scroll and full visibility!
             st.download_button(
                 label=f"Download {csv_name}",
                 data=stat_df.to_csv(index=False).encode(),
