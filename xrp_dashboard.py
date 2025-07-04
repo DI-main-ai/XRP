@@ -136,32 +136,30 @@ with tab2:
         "Number of Accounts and Sum of Balance Range.csv",
         "Percentage of Accounts with Balances Greater Than or Equal to.csv"
     ]
-    # Column rename mappings
-    TABLE1_RENAME = {
-        "-- Number of accounts and sum of balance range": "Accounts",
-        "-- Number of accounts and sum of balance range.1": "Balance Range (XRP)",
-        "-- Number of accounts and sum of balance range.2": "Sum in Range (XRP)",
-    }
-    TABLE2_RENAME = {
-        "Percentage of accounts with balance starting at...": "Threshold (%)",
-        "Percentage # Accounts Balance equals (or greater than)": "Accounts ≥ Threshold",
-        "Percentage of accounts with balance starting at....1": "Threshold #",
-        "Percentage # Accounts Balance equals (or greater than).1": "Accounts ≥ #",
-        "Percentage of accounts with balance starting at....2": "Threshold (XRP)",
-        "Percentage # Accounts Balance equals (or greater than).2": "XRP ≥ Threshold",
-    }
-
     found_any = False
     for csv_name in stats_csvs:
         if os.path.exists(csv_name):
             found_any = True
             st.subheader(pretty_name(csv_name.replace('.csv', '')))
             stat_df = pd.read_csv(csv_name)
+
+            # --- Fix Table 1 (accounts/balance range/sum in range) ---
             if "Number of Accounts and Sum of Balance Range" in csv_name:
-                stat_df = clean_and_rename_stat_df(stat_df, TABLE1_RENAME)
+                # Keep only first 3 columns
+                stat_df = stat_df.iloc[:, :3]
+                # Rename to short headers
+                stat_df.columns = ["Accounts", "Balance Range (XRP)", "Sum in Range (XRP)"]
+                # Remove rows that are identical to the header row
+                mask = ~stat_df.apply(lambda row: all(str(row[i]).strip().lower() == str(stat_df.columns[i]).strip().lower() for i in range(len(stat_df.columns))), axis=1)
+                stat_df = stat_df[mask].reset_index(drop=True)
+            # --- Fix Table 2 (percentage table) ---
             elif "Percentage of Accounts with Balances Greater Than or Equal to" in csv_name:
-                stat_df = clean_and_rename_stat_df(stat_df, TABLE2_RENAME)
-            stat_df = format_stats_table(stat_df, csv_name)
+                # Remove any duplicate header rows (some exports have them)
+                orig_cols = list(stat_df.columns)
+                stat_df = stat_df[~stat_df.apply(lambda row: all(str(row[i]).strip().lower() == str(orig_cols[i]).strip().lower() for i in range(len(orig_cols))), axis=1)].reset_index(drop=True)
+                # Shorten headers
+                stat_df.columns = ["Threshold (%)", "Accounts ≥ Threshold", "XRP ≥ Threshold"]
+
             st.dataframe(stat_df, use_container_width=True, hide_index=True)
             st.download_button(
                 label=f"Download {csv_name}",
