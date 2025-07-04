@@ -142,24 +142,14 @@ with tab2:
             found_any = True
             st.subheader(pretty_name(csv_name.replace('.csv', '')))
             stat_df = pd.read_csv(csv_name)
-
-            # --- Fix Table 1 (accounts/balance range/sum in range) ---
+            # --- Only keep rows where first column starts with a number
+            stat_df = stat_df[[col for col in stat_df.columns[:3]]]  # keep at most first 3 cols
+            stat_df = stat_df[stat_df[stat_df.columns[0]].astype(str).str.strip().str[0].str.isdigit()]
+            # Rename columns to short/clear names
             if "Number of Accounts and Sum of Balance Range" in csv_name:
-                # Keep only first 3 columns
-                stat_df = stat_df.iloc[:, :3]
-                # Rename to short headers
                 stat_df.columns = ["Accounts", "Balance Range (XRP)", "Sum in Range (XRP)"]
-                # Remove rows that are identical to the header row
-                mask = ~stat_df.apply(lambda row: all(str(row[i]).strip().lower() == str(stat_df.columns[i]).strip().lower() for i in range(len(stat_df.columns))), axis=1)
-                stat_df = stat_df[mask].reset_index(drop=True)
-            # --- Fix Table 2 (percentage table) ---
             elif "Percentage of Accounts with Balances Greater Than or Equal to" in csv_name:
-                # Remove any duplicate header rows (some exports have them)
-                orig_cols = list(stat_df.columns)
-                stat_df = stat_df[~stat_df.apply(lambda row: all(str(row[i]).strip().lower() == str(orig_cols[i]).strip().lower() for i in range(len(orig_cols))), axis=1)].reset_index(drop=True)
-                # Shorten headers
                 stat_df.columns = ["Threshold (%)", "Accounts ≥ Threshold", "XRP ≥ Threshold"]
-
             st.dataframe(stat_df, use_container_width=True, hide_index=True)
             st.download_button(
                 label=f"Download {csv_name}",
@@ -169,6 +159,7 @@ with tab2:
             )
     if not found_any:
         st.info("No Current Statistics CSVs found. Please add them to the folder.")
+
 
 with tab1:
     # Find all _Series1_DAILY_LATEST.csv files and map them to "base name" for dropdown
