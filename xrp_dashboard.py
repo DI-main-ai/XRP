@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import os
+import re
 import numpy as np
 
 # ----- DARK THEME INJECT -----
@@ -72,7 +73,21 @@ st.markdown("""
 
 
 st.title("📊 XRP Rich List Interactive Dashboard")
+def extract_leading_number(name):
+    # Get the first group of digits (possibly with commas/underscores) before a separator
+    match = re.match(r"^([0-9,_.]+)", name)
+    if match:
+        # Remove commas and underscores, convert to float for sorting
+        try:
+            num = float(match.group(1).replace(",", "").replace("_", ""))
+            return num
+        except:
+            return float('inf')
+    return float('inf')  # Non-numeric names sort separately
 
+def is_not_number_start(name):
+    # True if not starting with a digit
+    return not re.match(r"^\d", name)
 def pretty_name(name):
     name = name.replace('_', ' ').replace('.csv', '').replace('-', '–')
     name = name.replace('Infinity', '∞')
@@ -197,13 +212,23 @@ with tab1:
            and not f.lower().startswith('percentage of accounts')
            and not f.lower().startswith('current_stats')
     ]
+
     if not csv_files:
         st.error("No CSV files found in this folder!")
         st.stop()
 
+    non_num = sorted([f for f in csv_files if is_not_number_start(f)], key=pretty_name)
+    num_start = sorted(
+        [f for f in csv_files if not is_not_number_start(f)],
+        key=lambda x: extract_leading_number(os.path.splitext(x)[0])
+    )
+
+    # Final ordered list
+    ordered_csvs = non_num + num_start
+
     csv_choice = st.sidebar.selectbox(
         "Choose a data range/table:",
-        sorted(csv_files, key=pretty_name),
+        ordered_csvs,
         format_func=pretty_name
     )
 
