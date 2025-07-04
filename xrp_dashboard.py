@@ -5,9 +5,9 @@ import os
 import re
 import numpy as np
 
-# ----- DARK THEME INJECT -----
 st.set_page_config(page_title="XRP Rich List Dashboard", initial_sidebar_state="collapsed", layout="wide")
 
+# --- DARK THEME ---
 st.markdown("""
     <style>
     html, body, [data-testid="stAppViewContainer"] {
@@ -94,7 +94,32 @@ def format_millions(val):
     else:
         return f"{v:,}"
 
-# ----------- FORMATTING FOR STATS TABLES ------------
+# ---------- COLUMN RENAME MAPPING ----------
+COLUMN_RENAME_MAP = {
+    # Table 1
+    "-- Number of accounts and sum of balance range": "Accounts",
+    "-- Number of accounts and sum of balance range.1": "Balance Range (XRP)",
+    "-- Number of accounts and sum of balance range.2": "Sum in Range (XRP)",
+    # Table 2 (adjust keys as per your actual column names if they differ)
+    "Percentage # Accounts Balance equals (or greater than) x": "% Threshold",
+    "Percentage of accounts": "# Accounts",
+    "Percentage # Accounts Balance equals (or greater than) x.1": "Sum at Threshold (XRP)",
+}
+# -------------------------------------------
+
+def clean_stat_df(df):
+    # Remove rows that match column headers (duplicate headers)
+    header = [str(col).strip().lower() for col in df.columns]
+    def is_duplicate(row):
+        values = [str(x).strip().lower() for x in row]
+        return values == header
+    df = df[~df.apply(is_duplicate, axis=1)].reset_index(drop=True)
+    return df
+
+def rename_columns(df):
+    # Use mapping for short names; fallback to original if not found
+    return df.rename(columns={c: COLUMN_RENAME_MAP.get(c, c) for c in df.columns})
+
 def format_stats_table(df, table_name):
     df = df.copy()
     # Table 1: format 1st and 3rd columns (index 0 and 2)
@@ -115,7 +140,6 @@ def format_stats_table(df, table_name):
                 for x in df[col]
             ]
     return df
-# ----------------------------------------------------
 
 # ---- MAIN TABS ----
 tab2, tab1 = st.tabs(["📋 Current Statistics", "📈 Rich List Charts"])
@@ -132,6 +156,8 @@ with tab2:
             found_any = True
             st.subheader(pretty_name(csv_name.replace('.csv', '')))
             stat_df = pd.read_csv(csv_name)
+            stat_df = clean_stat_df(stat_df)
+            stat_df = rename_columns(stat_df)
             stat_df = format_stats_table(stat_df, csv_name)
             st.dataframe(stat_df, use_container_width=True, hide_index=True)
             st.download_button(
@@ -144,18 +170,14 @@ with tab2:
         st.info("No Current Statistics CSVs found. Please add them to the folder.")
 
 with tab1:
-    # Find all _Series1_DAILY_LATEST.csv files and map them to "base name" for dropdown
     csv_files = [
         f for f in os.listdir('.')
         if f.endswith('_Series1_DAILY_LATEST.csv')
     ]
-    # Map base names for dropdown
     file_to_title = {
         f: f.replace('_Series1_DAILY_LATEST.csv', '').replace('_', ' ').replace('-', '–').replace('Infinity', '∞').strip()
         for f in csv_files
     }
-
-    # Sort: non-numeric first (alphabetical), then numeric (by leading number)
     non_num = sorted(
         [f for f, title in file_to_title.items() if is_not_number_start(title)],
         key=lambda x: file_to_title[x]
@@ -185,7 +207,6 @@ with tab1:
 
     if date_col is not None:
         df[date_col] = pd.to_datetime(df[date_col]).dt.date
-        # No grouping/summing, as file is already 1 row per date!
     else:
         st.warning("No 'date' column found! Chart x-axis may not be time-based.")
 
