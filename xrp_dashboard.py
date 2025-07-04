@@ -142,17 +142,21 @@ with tab2:
             found_any = True
             st.subheader(pretty_name(csv_name.replace('.csv', '')))
             stat_df = pd.read_csv(csv_name)
-            # --- Limit to 3 columns max ---
             stat_df = stat_df.iloc[:, :3]
-            # --- Keep only rows where first col starts with a digit ---
+            # Only keep rows where first col starts with a digit
             stat_df = stat_df[
                 stat_df.iloc[:, 0].astype(str).str.strip().str.match(r'^\d')
             ].reset_index(drop=True)
-            # --- Short column headers ---
+
+            # Rename columns and format numbers
             if "Number of Accounts and Sum of Balance Range" in csv_name:
                 stat_df.columns = ["Accounts", "Balance Range (XRP)", "Sum in Range (XRP)"]
+                # Format Accounts and Sum columns
+                stat_df["Accounts"] = stat_df["Accounts"].apply(lambda x: f"{int(float(str(x).replace(',',''))):,}" if pd.notnull(x) and str(x).replace(".", "").replace(",", "").isdigit() else x)
+                stat_df["Sum in Range (XRP)"] = stat_df["Sum in Range (XRP)"].apply(lambda x: f"{int(float(str(x).replace(',',''))):,}" if pd.notnull(x) and str(x).replace(".", "").replace(",", "").isdigit() else x)
             elif "Percentage of Accounts with Balances Greater Than or Equal to" in csv_name:
                 stat_df.columns = ["Threshold (%)", "Accounts ≥ Threshold", "XRP ≥ Threshold"]
+                stat_df["Accounts ≥ Threshold"] = stat_df["Accounts ≥ Threshold"].apply(lambda x: f"{int(float(str(x).replace(',',''))):,}" if pd.notnull(x) and str(x).replace(".", "").replace(",", "").isdigit() else x)
             st.dataframe(stat_df, use_container_width=True, hide_index=True)
             st.download_button(
                 label=f"Download {csv_name}",
