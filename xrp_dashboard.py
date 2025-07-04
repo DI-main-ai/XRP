@@ -142,10 +142,13 @@ with tab2:
             found_any = True
             st.subheader(pretty_name(csv_name.replace('.csv', '')))
             stat_df = pd.read_csv(csv_name)
-            # --- Only keep rows where first column starts with a number
-            stat_df = stat_df[[col for col in stat_df.columns[:3]]]  # keep at most first 3 cols
-            stat_df = stat_df[stat_df[stat_df.columns[0]].astype(str).str.strip().str[0].str.isdigit()]
-            # Rename columns to short/clear names
+            # --- Limit to 3 columns max ---
+            stat_df = stat_df.iloc[:, :3]
+            # --- Keep only rows where first col starts with a digit ---
+            stat_df = stat_df[
+                stat_df.iloc[:, 0].astype(str).str.strip().str.match(r'^\d')
+            ].reset_index(drop=True)
+            # --- Short column headers ---
             if "Number of Accounts and Sum of Balance Range" in csv_name:
                 stat_df.columns = ["Accounts", "Balance Range (XRP)", "Sum in Range (XRP)"]
             elif "Percentage of Accounts with Balances Greater Than or Equal to" in csv_name:
