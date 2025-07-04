@@ -94,6 +94,29 @@ def format_millions(val):
     else:
         return f"{v:,}"
 
+# ----------- FORMATTING FOR STATS TABLES ------------
+def format_stats_table(df, table_name):
+    df = df.copy()
+    # Table 1: format 1st and 3rd columns (index 0 and 2)
+    if "Number of Accounts and Sum of Balance Range" in table_name:
+        for idx in [0, 2]:
+            if idx < len(df.columns):
+                col = df.columns[idx]
+                df[col] = [
+                    f"{int(float(str(x).replace(',',''))):,}" if pd.notnull(x) and str(x).replace(",", "").replace(".", "").isdigit() else x
+                    for x in df[col]
+                ]
+    # Table 2: format 2nd column (index 1)
+    elif "Percentage of Accounts with Balances Greater Than or Equal to" in table_name:
+        if len(df.columns) > 1:
+            col = df.columns[1]
+            df[col] = [
+                f"{int(float(str(x).replace(',',''))):,}" if pd.notnull(x) and str(x).replace(",", "").replace(".", "").isdigit() else x
+                for x in df[col]
+            ]
+    return df
+# ----------------------------------------------------
+
 # ---- MAIN TABS ----
 tab2, tab1 = st.tabs(["📋 Current Statistics", "📈 Rich List Charts"])
 
@@ -109,6 +132,7 @@ with tab2:
             found_any = True
             st.subheader(pretty_name(csv_name.replace('.csv', '')))
             stat_df = pd.read_csv(csv_name)
+            stat_df = format_stats_table(stat_df, csv_name)
             st.dataframe(stat_df, use_container_width=True, hide_index=True)
             st.download_button(
                 label=f"Download {csv_name}",
