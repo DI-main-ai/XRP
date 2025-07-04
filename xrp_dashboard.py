@@ -207,7 +207,7 @@ with tab2:
 with tab1:
     csv_files = [
         f for f in os.listdir('.')
-        if f.endswith('.csv')
+        if f.endswith('Series1_DAILY_LATEST.csv')
            and not f.lower().startswith('number of accounts')
            and not f.lower().startswith('percentage of accounts')
            and not f.lower().startswith('current_stats')
