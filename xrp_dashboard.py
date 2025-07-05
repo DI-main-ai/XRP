@@ -4,9 +4,9 @@ import plotly.express as px
 import os
 import re
 
-# ----- DARK THEME INJECT -----
 st.set_page_config(page_title="XRP Rich List Dashboard", initial_sidebar_state="collapsed", layout="wide")
 
+# ---- DARK THEME ----
 st.markdown("""
     <style>
     html, body, [data-testid="stAppViewContainer"] {
@@ -93,80 +93,98 @@ def format_millions(val):
     else:
         return f"{v:,}"
 
-# ----------- CLEAN/FORMAT STATS TABLES -------------
-def clean_and_rename_stat_df(df, rename_map=None):
-    orig_cols = [str(col).strip().lower() for col in df.columns]
-    def is_dup_header(row):
-        vals = [str(x).strip().lower() for x in row]
-        # Allow partial match, some CSVs have extra columns
-        return all(v in orig_cols for v in vals if v)
-    df = df[~df.apply(is_dup_header, axis=1)].reset_index(drop=True)
-    if rename_map:
-        df = df.rename(columns={c: rename_map.get(c, c) for c in df.columns})
-    return df
+def format_commas(val):
+    try:
+        v = float(str(val).replace(",", ""))
+        return f"{int(v):,}"
+    except:
+        return val
 
-def format_stats_table(df, table_name):
-    df = df.copy()
-    # Table 1: format 1st and 3rd columns (index 0 and 2)
+# Shorten column headers for stats tables
+def short_stat_headers(table_name, colnames):
+    # Use short/clear headers, still informative
     if "Number of Accounts and Sum of Balance Range" in table_name:
-        for idx in [0, 2]:
-            if idx < len(df.columns):
-                col = df.columns[idx]
-                df[col] = [
-                    f"{int(float(str(x).replace(',',''))):,}" if pd.notnull(x) and str(x).replace(",", "").replace(".", "").isdigit() else x
-                    for x in df[col]
-                ]
-    # Table 2: format 2nd column (index 1)
+        return ["Accounts", "Range (XRP)", "Total XRP"]
     elif "Percentage of Accounts with Balances Greater Than or Equal to" in table_name:
-        if len(df.columns) > 1:
-            col = df.columns[1]
-            df[col] = [
-                f"{int(float(str(x).replace(',',''))):,}" if pd.notnull(x) and str(x).replace(",", "").replace(".", "").isdigit() else x
-                for x in df[col]
-            ]
-    return df
-# ----------------------------------------------------
+        return ["Threshold (%)", "Accounts ≥ Thresh", "XRP ≥ Thresh"]
+    return [str(c)[:25] for c in colnames]
 
 # ---- MAIN TABS ----
 tab2, tab1 = st.tabs(["📋 Current Statistics", "📈 Rich List Charts"])
 
 with tab2:
     st.header("Current XRP Ledger Statistics")
-    stats_csvs = [
-        "Number of Accounts and Sum of Balance Range.csv",
-        "Percentage of Accounts with Balances Greater Than or Equal to.csv"
-    ]
-    found_any = False
-    for csv_name in stats_csvs:
-        if os.path.exists(csv_name):
-            found_any = True
-            st.subheader(pretty_name(csv_name.replace('.csv', '')))
-            stat_df = pd.read_csv(csv_name)
-            stat_df = stat_df.iloc[:, :3]
-            # Only keep rows where first col starts with a digit
-            stat_df = stat_df[
-                stat_df.iloc[:, 0].astype(str).str.strip().str.match(r'^\d')
-            ].reset_index(drop=True)
+    st.markdown("Data source: [rich-list.info](https://rich-list.info/)")
 
-            # Rename columns and format numbers
-            if "Number of Accounts and Sum of Balance Range" in csv_name:
-                stat_df.columns = ["Accounts", "Balance Range (XRP)", "Sum in Range (XRP)"]
-                # Format Accounts and Sum columns
-                stat_df["Accounts"] = stat_df["Accounts"].apply(lambda x: f"{int(float(str(x).replace(',',''))):,}" if pd.notnull(x) and str(x).replace(".", "").replace(",", "").isdigit() else x)
-                stat_df["Sum in Range (XRP)"] = stat_df["Sum in Range (XRP)"].apply(lambda x: f"{int(float(str(x).replace(',',''))):,}" if pd.notnull(x) and str(x).replace(".", "").replace(",", "").isdigit() else x)
-            elif "Percentage of Accounts with Balances Greater Than or Equal to" in csv_name:
-                stat_df.columns = ["Threshold (%)", "Accounts ≥ Threshold", "XRP ≥ Threshold"]
-                stat_df["Accounts ≥ Threshold"] = stat_df["Accounts ≥ Threshold"].apply(lambda x: f"{int(float(str(x).replace(',',''))):,}" if pd.notnull(x) and str(x).replace(".", "").replace(",", "").isdigit() else x)
-            st.dataframe(stat_df, use_container_width=True, hide_index=True)
-            st.download_button(
-                label=f"Download {csv_name}",
-                data=stat_df.to_csv(index=False).encode(),
-                file_name=csv_name,
-                mime='text/csv',
-            )
-    if not found_any:
-        st.info("No Current Statistics CSVs found. Please add them to the folder.")
+    # ---- USE HISTORY CSVs ----
+    stats_files = {
+        "Number of Accounts and Sum of Balance Range.csv": "current_stats_accounts_history.csv",
+        "Percentage of Accounts with Balances Greater Than or Equal to.csv": "current_stats_percent_history.csv"
+    }
+    for display_name, history_csv in stats_files.items():
+        if not os.path.exists(history_csv):
+            st.info(f"No data found for {display_name} (expected {history_csv}).")
+            continue
 
+        # Load history, show latest and let user pick previous for comparison
+        hist = pd.read_csv(history_csv)
+        # Convert date to datetime and sort, keep only columns 0:3
+        hist['date'] = pd.to_datetime(hist['date'])
+        hist = hist.sort_values('date')
+        hist = hist.iloc[:, :4]  # Only use up to 4 columns (date + 3)
+
+        # Option to select any day (default: latest)
+        all_dates = hist['date'].dt.date.unique()
+        latest_date = all_dates[-1]
+        prev_date = all_dates[-2] if len(all_dates) > 1 else None
+        sel_date = st.selectbox(
+            f"Select date for '{pretty_name(display_name)}':",
+            reversed(all_dates),
+            format_func=lambda d: d.strftime("%Y-%m-%d")
+        )
+        latest_tbl = hist[hist['date'].dt.date == sel_date].copy().reset_index(drop=True)
+        latest_tbl = latest_tbl.iloc[:, 1:]  # Drop 'date'
+        latest_tbl.columns = short_stat_headers(display_name, latest_tbl.columns)
+
+        # Format numbers: add commas to "Accounts" and "Total XRP" (1st & 3rd col for Table1, 2nd col for Table2)
+        if "Number of Accounts and Sum of Balance Range" in display_name:
+            latest_tbl.iloc[:, 0] = latest_tbl.iloc[:, 0].apply(format_commas)
+            if latest_tbl.shape[1] > 2:
+                latest_tbl.iloc[:, 2] = latest_tbl.iloc[:, 2].apply(format_commas)
+        elif "Percentage of Accounts with Balances Greater Than or Equal to" in display_name:
+            if latest_tbl.shape[1] > 1:
+                latest_tbl.iloc[:, 1] = latest_tbl.iloc[:, 1].apply(format_commas)
+
+        st.subheader(pretty_name(display_name))
+        st.caption(f"Last updated: {latest_date}")
+        st.dataframe(latest_tbl, use_container_width=True, hide_index=True)
+
+        # Show previous day's diff if available
+        if prev_date is not None and sel_date == latest_date:
+            prev_tbl = hist[hist['date'].dt.date == prev_date].copy().reset_index(drop=True)
+            prev_tbl = prev_tbl.iloc[:, 1:]
+            prev_tbl.columns = latest_tbl.columns
+
+            # Compute absolute and percent change, only for numeric columns
+            changes = latest_tbl.copy()
+            for col in latest_tbl.columns:
+                try:
+                    prev_vals = prev_tbl[col].astype(float)
+                    latest_vals = latest_tbl[col].astype(float)
+                    abs_change = latest_vals - prev_vals
+                    pct_change = (abs_change / prev_vals.replace(0, float('nan'))) * 100
+                    changes[col] = [f"{a:+,.0f} ({b:+.2f}%)" if pd.notnull(a) else "" for a, b in zip(abs_change, pct_change)]
+                except Exception:
+                    changes[col] = [""] * len(latest_tbl)
+            with st.expander("Show daily change vs previous day"):
+                st.dataframe(changes, use_container_width=True, hide_index=True)
+
+        st.download_button(
+            label=f"Download history as CSV",
+            data=hist.to_csv(index=False).encode(),
+            file_name=history_csv,
+            mime='text/csv',
+        )
 
 with tab1:
     # Find all _Series1_DAILY_LATEST.csv files and map them to "base name" for dropdown
@@ -174,13 +192,11 @@ with tab1:
         f for f in os.listdir('.')
         if f.endswith('_Series1_DAILY_LATEST.csv')
     ]
-    # Map base names for dropdown
     file_to_title = {
         f: f.replace('_Series1_DAILY_LATEST.csv', '').replace('_', ' ').replace('-', '–').replace('Infinity', '∞').strip()
         for f in csv_files
     }
 
-    # Sort: non-numeric first (alphabetical), then numeric (by leading number)
     non_num = sorted(
         [f for f, title in file_to_title.items() if is_not_number_start(title)],
         key=lambda x: file_to_title[x]
@@ -210,11 +226,14 @@ with tab1:
 
     if date_col is not None:
         df[date_col] = pd.to_datetime(df[date_col]).dt.date
-        # No grouping/summing, as file is already 1 row per date!
     else:
         st.warning("No 'date' column found! Chart x-axis may not be time-based.")
 
     st.subheader(f"Chart: {file_to_title[csv_choice]}")
+    # Show last update date for this chart
+    if date_col is not None:
+        last_chart_update = df[date_col].max()
+        st.caption(f"Last updated: {last_chart_update}")
     fig = px.line(
         df,
         x=date_col if date_col else df.columns[0],
