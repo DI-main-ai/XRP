@@ -155,7 +155,10 @@ with tab2:
             st.warning(f"No date column in {fname}.")
             continue
 
-        df["date"] = pd.to_datetime(df["date"])
+        df["date"] = pd.to_datetime(df["date"], errors='coerce', infer_datetime_format=True)
+        if df["date"].isnull().any():
+            st.warning(f"Some rows in {fname} have invalid date format. Check your CSVs.")
+
         date_options = sorted(df["date"].dt.date.unique(), reverse=True)
         sel_date = st.selectbox(
             f"Select Date for {table_name}:", date_options, 0, key=table_name)
@@ -173,7 +176,9 @@ with tab2:
             id_col = list(label_map.values())[1]
 
             yest_df = yesterday_df.copy()
-            yest_df["date"] = pd.to_datetime(yest_df["date"])
+            yest_df["date"] = pd.to_datetime(yest_df["date"], errors='coerce', infer_datetime_format=True)
+            if yest_df["date"].isnull().any():
+                st.warning(f"Some rows in {fname} have invalid date format. Check your CSVs.")
             yest_df = yest_df[yest_df["date"].dt.date == (sel_date - pd.Timedelta(days=1))].copy()
             yest_df = yest_df[["date"] + data_cols].reset_index(drop=True)
             yest_df.columns = ["Date"] + list(label_map.values())
@@ -245,7 +250,9 @@ with tab2:
     if os.path.exists(PERCENT_CSV):
         stat_df = pd.read_csv(PERCENT_CSV)
         if "date" in stat_df.columns:
-            stat_df['date'] = pd.to_datetime(stat_df['date'])
+            stat_df['date'] = pd.to_datetime(stat_df['date'], errors='coerce', infer_datetime_format=True)
+            if stat_df["date"].isnull().any():
+                st.warning(f"Some rows in {fname} have invalid date format. Check your CSVs.")
             latest_date = stat_df['date'].max()
             st.markdown(f"<span style='color:#aaa;'>Last updated: {latest_date.date()}</span>", unsafe_allow_html=True)
             latest_df = stat_df[stat_df['date'] == latest_date].copy()
@@ -318,8 +325,9 @@ with tab1:
 
     st.subheader(f"Chart: {file_to_title[csv_choice]}")
     if date_col is not None and 'value' in df.columns:
-        df[date_col] = pd.to_datetime(df[date_col]).dt.date
-
+        df[date_col] = pd.to_datetime(df[date_col], errors='coerce', infer_datetime_format=True).dt.date
+        if df["date"].isnull().any():
+            st.warning(f"Some rows in {fname} have invalid date format. Check your CSVs.")
         # Plot chart (abbreviated y-axis)
         fig = px.line(
             df,
