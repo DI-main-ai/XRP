@@ -4,9 +4,8 @@ import plotly.express as px
 import os
 import re
 
+# ----- DARK THEME INJECT -----
 st.set_page_config(page_title="XRP Rich List Dashboard", initial_sidebar_state="collapsed", layout="wide")
-
-# ---- DARK THEME ----
 st.markdown("""
     <style>
     html, body, [data-testid="stAppViewContainer"] {
@@ -93,114 +92,79 @@ def format_millions(val):
     else:
         return f"{v:,}"
 
+def parse_range_low(x):
+    # Extract lowest number from range string like '10,000 - 25,000'
+    if pd.isnull(x):
+        return float('inf')
+    x = str(x)
+    if "Infinity" in x:
+        return float('inf')
+    x = x.split("-")[0].replace(",", "").strip()
+    try:
+        return float(x)
+    except:
+        return float('inf')
+
 def format_commas(val):
     try:
-        v = float(str(val).replace(",", ""))
-        return f"{int(v):,}"
-    except:
+        # Handles values like 1,234.56 or 1234 or "5,000 XRP"
+        s = str(val).replace(",", "").replace("XRP", "").strip()
+        # Don't format as int if it has a decimal
+        if '.' in s:
+            n = float(s)
+            return f"{n:,.4f}".rstrip('0').rstrip('.')
+        else:
+            return f"{int(float(s)):,}"
+    except Exception:
         return val
-
-# Shorten column headers for stats tables
-def short_stat_headers(table_name, colnames):
-    # Use short/clear headers, still informative
-    if "Number of Accounts and Sum of Balance Range" in table_name:
-        return ["Accounts", "Range (XRP)", "Total XRP"]
-    elif "Percentage of Accounts with Balances Greater Than or Equal to" in table_name:
-        return ["Threshold (%)", "Accounts ≥ Thresh", "XRP ≥ Thresh"]
-    return [str(c)[:25] for c in colnames]
 
 # ---- MAIN TABS ----
 tab2, tab1 = st.tabs(["📋 Current Statistics", "📈 Rich List Charts"])
 
-def parse_range(val):
-    # Extracts the starting number from a range string like "100,000 - 500,000"
-    if isinstance(val, str):
-        match = re.match(r"(\d[\d,]*)", val)
-        if match:
-            return int(match.group(1).replace(',', ''))
-    return float('inf')
-
-def detect_accounts_table(df):
-    # Try to find the 'Range' column, 'Sum' column, and 'Accounts' column
-    cols = list(df.columns)
-    # Try different common variants (case-insensitive, ignore whitespace)
-    def norm(x): return x.strip().lower().replace(' ', '')
-    candidates = {
-        'range': [c for c in cols if 'range' in norm(c) or 'from' in norm(c)],
-        'sum': [c for c in cols if 'sum' in norm(c) or 'total' in norm(c) or 'xrp' in norm(c)],
-        'accounts': [c for c in cols if 'accounts' in norm(c)],
-        'date': [c for c in cols if 'date' in norm(c)]
-    }
-    # Heuristics to select columns
-    range_col = candidates['range'][0] if candidates['range'] else cols[1]
-    sum_col = candidates['sum'][0] if candidates['sum'] else cols[-1]
-    accounts_col = candidates['accounts'][0] if candidates['accounts'] else cols[0]
-    date_col = candidates['date'][0] if candidates['date'] else None
-
-    # If there's a date col at the end (sometimes happens), drop for table display
-    keep_cols = [accounts_col, range_col, sum_col]
-    return df[keep_cols].rename(columns={
-        accounts_col: "Accounts",
-        range_col: "Range (XRP)",
-        sum_col: "Total XRP"
-    })
-
-def detect_percent_table(df):
-    cols = list(df.columns)
-    def norm(x): return x.strip().lower().replace(' ', '')
-    candidates = {
-        'thresh': [c for c in cols if 'thresh' in norm(c) or '%' in norm(c) or 'starting' in norm(c)],
-        'accounts': [c for c in cols if 'accounts' in norm(c)],
-        'xrp': [c for c in cols if 'xrp' in norm(c)],
-        'date': [c for c in cols if 'date' in norm(c)]
-    }
-    thresh_col = candidates['thresh'][0] if candidates['thresh'] else cols[0]
-    accounts_col = candidates['accounts'][0] if candidates['accounts'] else cols[1]
-    xrp_col = candidates['xrp'][0] if candidates['xrp'] else cols[2]
-    date_col = candidates['date'][0] if candidates['date'] else None
-    keep_cols = [thresh_col, accounts_col, xrp_col]
-    return df[keep_cols].rename(columns={
-        thresh_col: "Threshold (%)",
-        accounts_col: "Accounts ≥ Thresh",
-        xrp_col: "XRP ≥ Thresh"
-    })
-
 with tab2:
     st.header("Current XRP Ledger Statistics")
-    stats_csvs = [
-        "Number of Accounts and Sum of Balance Range.csv",
-        "Percentage of Accounts with Balances Greater Than or Equal to.csv"
-    ]
-    found_any = False
-    for csv_name in stats_csvs:
-        if os.path.exists(csv_name):
-            found_any = True
-            st.subheader(pretty_name(csv_name.replace('.csv', '')))
-            stat_df = pd.read_csv(csv_name)
 
-            # Remove rows that are just repeated headers or blank
-            stat_df = stat_df[[all(str(cell).strip() for cell in row) and not all(str(cell).lower().startswith(tuple('abcdefghijklmnopqrstuvwxyz')) for cell in row) for _, row in stat_df.iterrows()]]
+    # ------- ACCOUNTS TABLE (current_stats_accounts_history.csv) -------
+    if os.path.exists("current_stats_accounts_history.csv"):
+        accounts_df = pd.read_csv("current_stats_accounts_history.csv")
+        latest_date = accounts_df['date'].max()
+        latest_accounts = accounts_df[accounts_df['date'] == latest_date].copy()
+        # Format columns
+        latest_accounts["Accounts"] = latest_accounts["Accounts"].apply(format_commas)
+        latest_accounts["Sum in Range (XRP)"] = latest_accounts["Sum in Range (XRP)"].apply(format_commas)
+        # Order by low end of range
+        latest_accounts = latest_accounts.sort_values(by="Balance Range (XRP)", key=lambda col: col.map(parse_range_low))
+        latest_accounts = latest_accounts[["Accounts", "Balance Range (XRP)", "Sum in Range (XRP)"]]
+        st.subheader("Number Of Accounts And Sum Of Balance Range")
+        st.caption(f"Last updated: {latest_date}")
+        st.dataframe(latest_accounts, use_container_width=True, hide_index=True)
+        st.download_button(
+            label=f"Download Number of Accounts and Sum of Balance Range.csv",
+            data=latest_accounts.to_csv(index=False).encode(),
+            file_name="Number of Accounts and Sum of Balance Range.csv",
+            mime='text/csv',
+        )
+    else:
+        st.warning("current_stats_accounts_history.csv not found.")
 
-            if "Number of Accounts" in csv_name:
-                stat_df = detect_accounts_table(stat_df)
-                # Sort by minimum of range
-                stat_df = stat_df.sort_values(by="Range (XRP)", key=lambda col: col.map(parse_range)).reset_index(drop=True)
-                # Format numbers
-                stat_df["Accounts"] = stat_df["Accounts"].apply(lambda x: f"{int(float(str(x).replace(',',''))):,}" if str(x).replace(",","").isdigit() else x)
-                stat_df["Total XRP"] = stat_df["Total XRP"].apply(lambda x: f"{float(str(x).replace(',','')):,.0f}" if str(x).replace(",","").replace(".","").isdigit() else x)
-            else:
-                stat_df = detect_percent_table(stat_df)
-                stat_df["Accounts ≥ Thresh"] = stat_df["Accounts ≥ Thresh"].apply(lambda x: f"{int(float(str(x).replace(',',''))):,}" if str(x).replace(",","").isdigit() else x)
-                stat_df["XRP ≥ Thresh"] = stat_df["XRP ≥ Thresh"].apply(lambda x: f"{float(str(x).replace(',','').replace('XRP','')):,.2f} XRP" if isinstance(x,str) and "XRP" in x else x)
-            st.dataframe(stat_df, use_container_width=True, hide_index=True)
-            st.download_button(
-                label=f"Download {csv_name}",
-                data=stat_df.to_csv(index=False).encode(),
-                file_name=csv_name,
-                mime='text/csv',
-            )
-    if not found_any:
-        st.info("No Current Statistics CSVs found. Please add them to the folder.")
+    # ------- PERCENT TABLE (current_stats_percent_history.csv) -------
+    if os.path.exists("current_stats_percent_history.csv"):
+        percent_df = pd.read_csv("current_stats_percent_history.csv")
+        latest_date = percent_df['date'].max()
+        latest_percent = percent_df[percent_df['date'] == latest_date].copy()
+        latest_percent["Accounts ≥ Threshold"] = latest_percent["Accounts ≥ Threshold"].apply(format_commas)
+        # "XRP ≥ Threshold" already has units, just display as is.
+        st.subheader("Percentage Of Accounts With Balances Greater Than Or Equal To")
+        st.caption(f"Last updated: {latest_date}")
+        st.dataframe(latest_percent[["Threshold (%)", "Accounts ≥ Threshold", "XRP ≥ Threshold"]], use_container_width=True, hide_index=True)
+        st.download_button(
+            label=f"Download Percentage of Accounts with Balances Greater Than or Equal to.csv",
+            data=latest_percent.to_csv(index=False).encode(),
+            file_name="Percentage of Accounts with Balances Greater Than or Equal to.csv",
+            mime='text/csv',
+        )
+    else:
+        st.warning("current_stats_percent_history.csv not found.")
 
 with tab1:
     # Find all _Series1_DAILY_LATEST.csv files and map them to "base name" for dropdown
@@ -208,11 +172,13 @@ with tab1:
         f for f in os.listdir('.')
         if f.endswith('_Series1_DAILY_LATEST.csv')
     ]
+    # Map base names for dropdown
     file_to_title = {
         f: f.replace('_Series1_DAILY_LATEST.csv', '').replace('_', ' ').replace('-', '–').replace('Infinity', '∞').strip()
         for f in csv_files
     }
 
+    # Sort: non-numeric first (alphabetical), then numeric (by leading number)
     non_num = sorted(
         [f for f, title in file_to_title.items() if is_not_number_start(title)],
         key=lambda x: file_to_title[x]
@@ -246,10 +212,6 @@ with tab1:
         st.warning("No 'date' column found! Chart x-axis may not be time-based.")
 
     st.subheader(f"Chart: {file_to_title[csv_choice]}")
-    # Show last update date for this chart
-    if date_col is not None:
-        last_chart_update = df[date_col].max()
-        st.caption(f"Last updated: {last_chart_update}")
     fig = px.line(
         df,
         x=date_col if date_col else df.columns[0],
