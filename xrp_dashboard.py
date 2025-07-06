@@ -140,103 +140,75 @@ with tab2:
     ACCOUNTS_CSV = "current_stats_accounts_history.csv"
     PERCENT_CSV  = "current_stats_percent_history.csv"
 
-    for table_name, fname, label_map in [
-        ("Number Of Accounts And Sum Of Balance Range", ACCOUNTS_CSV,
-         {"Accounts": "Accounts", "Balance Range (XRP)": "Balance Range (XRP)", "Sum in Range (XRP)": "Sum in Range (XRP)"}),
-        ("Percentage Of Accounts With Balances Greater Than Or Equal To", PERCENT_CSV,
-         {"Threshold (%)": "Threshold (%)", "Accounts ≥ Threshold": "Accounts ≥ Threshold", "XRP ≥ Threshold": "XRP ≥ Threshold"})
-    ]:
-        if not os.path.exists(fname):
-            st.info(f"{fname} not found.")
-            continue
+    def calc_and_display_delta_table(
+        df, id_col, delta_cols, table_name, date_col="date"
+    ):
+        # --- DATE PICKER ---
+        df[date_col] = pd.to_datetime(df[date_col], errors='coerce', infer_datetime_format=True)
+        if df[date_col].isnull().any():
+            st.warning(f"Some rows in {table_name} have invalid date format.")
 
-        df = pd.read_csv(fname)
-        if "date" not in df.columns:
-            st.warning(f"No date column in {fname}.")
-            continue
-
-        df["date"] = pd.to_datetime(df["date"], errors='coerce', infer_datetime_format=True)
-        if df["date"].isnull().any():
-            st.warning(f"Some rows in {fname} have invalid date format. Check your CSVs.")
-
-        date_options = sorted(df["date"].dt.date.unique(), reverse=True)
+        dates_available = sorted(df[date_col].dt.date.unique(), reverse=True)
         sel_date = st.selectbox(
-            f"Select Date for {table_name}:", date_options, 0, key=table_name)
-        show_delta = st.checkbox(f"Show change vs previous day", value=True, key=f"delta_{table_name}")
+            f"Select Date for {table_name}:", dates_available, 0, key=f"date_{table_name}"
+        )
+        show_delta = st.checkbox(
+            f"Show change vs previous day", value=True, key=f"delta_{table_name}"
+        )
 
-        today_df = df[df["date"].dt.date == sel_date].copy()
-        yesterday_df = df[df["date"].dt.date == (sel_date - pd.Timedelta(days=1))].copy()
+        today_df = df[df[date_col].dt.date == sel_date].copy()
+        yest_df = df[df[date_col].dt.date == (sel_date - pd.Timedelta(days=1))].copy()
 
-        columns = today_df.columns.tolist()
-        data_cols = [c for c in columns if c != "date"][:3]
-        today_df = today_df[["date"] + data_cols].reset_index(drop=True)
-        today_df.columns = ["Date"] + list(label_map.values())
+        today_df = today_df.drop_duplicates(subset=[id_col])
+        yest_df = yest_df.drop_duplicates(subset=[id_col])
 
-        if show_delta and not yesterday_df.empty:
-            id_col = list(label_map.values())[1]
+        # -- Drop extra columns to just keep what matters --
+        keep_cols = [date_col] + [id_col] + delta_cols
+        today_df = today_df[keep_cols].reset_index(drop=True)
+        yest_df = yest_df[keep_cols].reset_index(drop=True)
+        # Rename columns to prettify
+        pretty_map = {
+            "Balance Range (XRP)": "Balance Range (XRP)",
+            "Sum in Range (XRP)": "Sum in Range (XRP)",
+            "Accounts": "Accounts",
+            "Threshold (%)": "Threshold (%)",
+            "Accounts ≥ Threshold": "Accounts ≥ Threshold",
+            "XRP ≥ Threshold": "XRP ≥ Threshold"
+        }
+        today_df.columns = [c if c not in pretty_map else pretty_map[c] for c in today_df.columns]
+        yest_df.columns = [c if c not in pretty_map else pretty_map[c] for c in yest_df.columns]
 
-            yest_df = yesterday_df.copy()
-            yest_df["date"] = pd.to_datetime(yest_df["date"], errors='coerce', infer_datetime_format=True)
-            if yest_df["date"].isnull().any():
-                st.warning(f"Some rows in {fname} have invalid date format. Check your CSVs.")
-            yest_df = yest_df[yest_df["date"].dt.date == (sel_date - pd.Timedelta(days=1))].copy()
-            yest_df = yest_df[["date"] + data_cols].reset_index(drop=True)
-            yest_df.columns = ["Date"] + list(label_map.values())
+        id_col_pretty = id_col if id_col not in pretty_map else pretty_map[id_col]
 
-            yest_df = yest_df.drop_duplicates(subset=[id_col])
-            today_df = today_df.drop_duplicates(subset=[id_col])
-
-            merge_cols = [id_col] + [c for c in list(label_map.values())[1:] if c != id_col]
-            yest_df = yest_df[merge_cols]
-
-            today_df = today_df.loc[:, ~today_df.columns.duplicated()]
-            yest_df = yest_df.loc[:, ~yest_df.columns.duplicated()]
-
-            if id_col not in yest_df.columns or id_col not in today_df.columns:
-                st.error(f"ID column '{id_col}' not found in one of the datasets.")
-            else:
-                try:
-                    today_df = today_df.merge(yest_df, on=id_col, how="left", suffixes=('', '_prev'))
-
-                    # Only compute delta for numeric columns (not the ID column or text columns)
-                    numeric_cols = [
-                        col for col in today_df.columns
-                        if col not in [id_col, "Date"] and "_prev" not in col and
-                        pd.api.types.is_numeric_dtype(today_df[col])
-                    ]
-
-                    for col_now in numeric_cols:
-                        col_prev = f"{col_now}_prev"
-                        if col_prev not in today_df.columns:
-                            st.warning(f"Missing column in merge: {col_prev}")
-                            continue
-
-                        try:
-                            delta = today_df[col_now] - today_df[col_prev]
-                            percent = 100 * delta / today_df[col_prev]
-                            percent = percent.replace([float("inf"), -float("inf")], float("nan"))
-                        except Exception:
-                            delta = float("nan")
-                            percent = float("nan")
-
-                        today_df[f"{col_now} Δ"] = delta
-                        today_df[f"{col_now} Δ %"] = percent
-
-                    today_df = today_df[[c for c in today_df.columns if not c.endswith("_prev")]]
-                except Exception as e:
-                    st.error(f"Error during merge: {e}")
-
+        # --- Merge for delta ---
+        if show_delta and not yest_df.empty:
+            merged = today_df.merge(
+                yest_df,
+                on=id_col_pretty,
+                how="left",
+                suffixes=('', '_prev')
+            )
+            # Add delta columns for each requested delta_col
+            for col in delta_cols:
+                col_pretty = pretty_map.get(col, col)
+                col_prev = f"{col_pretty}_prev"
+                if col_prev in merged.columns:
+                    merged[f"{col_pretty} Δ"] = merged[col_pretty] - merged[col_prev]
+                else:
+                    merged[f"{col_pretty} Δ"] = ""
+            # Drop prev columns and keep order
+            keep = [col for col in merged.columns if not col.endswith("_prev")]
+            today_df = merged[keep]
+        # Formatting
         for c in today_df.columns:
-            if "Δ %" in c:
-                today_df[c] = today_df[c].apply(lambda v: f"{v:+.2f}%" if pd.notnull(v) else "")
-            elif "Δ" in c:
-                today_df[c] = today_df[c].apply(lambda v: f"{v:+,.0f}" if pd.notnull(v) and str(v).replace('.','',1).replace('-','').isdigit() else "")
+            if "Δ" in c:
+                today_df[c] = today_df[c].apply(lambda v: f"{v:+,}" if pd.notnull(v) and str(v).replace('.','',1).replace('-','').isdigit() else "")
             elif "Accounts" in c or "Sum" in c or "XRP" in c:
                 today_df[c] = today_df[c].apply(format_int)
 
         st.subheader(table_name)
         st.markdown(f"<span style='color:#aaa;'>Date: {sel_date}</span>", unsafe_allow_html=True)
-        st.dataframe(today_df.drop(columns="Date"), use_container_width=True, hide_index=True)
+        st.dataframe(today_df.drop(columns=[date_col]), use_container_width=True, hide_index=True)
         st.download_button(
             label=f"Download {table_name}",
             data=today_df.to_csv(index=False).encode(),
@@ -244,15 +216,34 @@ with tab2:
             mime='text/csv',
         )
 
+    # --- Table 1: Number Of Accounts And Sum Of Balance Range ---
+    if os.path.exists(ACCOUNTS_CSV):
+        df = pd.read_csv(ACCOUNTS_CSV)
+        # Use Balance Range (XRP) as id, show delta for Accounts and Sum in Range
+        # Remove % delta column for Sum
+        calc_and_display_delta_table(
+            df,
+            id_col="Balance Range (XRP)",
+            delta_cols=["Accounts", "Sum in Range (XRP)"],
+            table_name="Number Of Accounts And Sum Of Balance Range"
+        )
     else:
         st.info("current_stats_accounts_history.csv not found.")
 
+    # --- Table 2: Percentage Of Accounts With Balances Greater Than Or Equal To ---
     if os.path.exists(PERCENT_CSV):
-        stat_df = pd.read_csv(PERCENT_CSV)
+        df = pd.read_csv(PERCENT_CSV)
+        # Use Threshold (%) as id, show delta for Accounts ≥ Threshold and XRP ≥ Threshold
+        calc_and_display_delta_table(
+            df,
+            id_col="Threshold (%)",
+            delta_cols=["Accounts ≥ Threshold", "XRP ≥ Threshold"],
+            table_name="Percentage Of Accounts With Balances Greater Than Or Equal To"
+        )
+        # Latest "live" table (below, no delta, always latest)
+        stat_df = df.copy()
         if "date" in stat_df.columns:
             stat_df['date'] = pd.to_datetime(stat_df['date'], errors='coerce', infer_datetime_format=True)
-            if stat_df["date"].isnull().any():
-                st.warning(f"Some rows in {fname} have invalid date format. Check your CSVs.")
             latest_date = stat_df['date'].max()
             st.markdown(f"<span style='color:#aaa;'>Last updated: {latest_date.date()}</span>", unsafe_allow_html=True)
             latest_df = stat_df[stat_df['date'] == latest_date].copy()
@@ -279,7 +270,6 @@ with tab2:
         )
     else:
         st.info("current_stats_percent_history.csv not found.")
-
 
 with tab1:
     # Find all _Series1_DAILY_LATEST.csv files and map them to "base name" for dropdown
