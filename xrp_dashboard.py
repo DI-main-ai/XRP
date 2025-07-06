@@ -70,6 +70,20 @@ def format_int(val):
             return f"{v:,.4f}".rstrip('0').rstrip('.')
     except Exception:
         return val
+        
+def format_millions(val):
+    try:
+        v = float(val)
+    except Exception:
+        return val
+    if abs(v) >= 1e9:
+        return f"{v/1e9:,.2f}B"
+    elif abs(v) >= 1e6:
+        return f"{v/1e6:,.2f}M"
+    elif abs(v) >= 1e3:
+        return f"{v/1e3:,.2f}K"
+    else:
+        return f"{v:,}"
 
 def parse_range_start(range_str):
     # Get the starting number of a range "X - Y"
@@ -96,7 +110,19 @@ def extract_leading_number(name):
 
 def is_not_number_start(name):
     return not re.match(r"^\d", name)
-
+def format_xrp_thresh(x):
+    try:
+        # If it's a string with a space, get the numeric part and format it with commas
+        if isinstance(x, str) and " " in x:
+            val = x.split()[0].replace(",", "")
+            return f"{float(val):,.4f} XRP" if "." in val else f"{int(float(val)):,} XRP"
+        elif pd.isna(x):
+            return ""
+        else:
+            v = float(x)
+            return f"{v:,.4f} XRP" if not v.is_integer() else f"{int(v):,} XRP"
+    except Exception:
+        return str(x)
 # ---- MAIN TABS ----
 tab2, tab1 = st.tabs(["📋 Current Statistics", "📈 Rich List Charts"])
 
@@ -167,20 +193,6 @@ with tab2:
         latest_df.columns = ["Threshold (%)", "Accounts ≥ Thresh", "XRP ≥ Thresh"]
 
         latest_df["Accounts ≥ Thresh"] = latest_df["Accounts ≥ Thresh"].apply(format_int)
-        def format_xrp_thresh(x):
-            try:
-                # If it's a string with a space, get the numeric part and format it with commas
-                if isinstance(x, str) and " " in x:
-                    val = x.split()[0].replace(",", "")
-                    return f"{float(val):,.4f} XRP" if "." in val else f"{int(float(val)):,} XRP"
-                elif pd.isna(x):
-                    return ""
-                else:
-                    v = float(x)
-                    return f"{v:,.4f} XRP" if not v.is_integer() else f"{int(v):,} XRP"
-            except Exception:
-                return str(x)
-        
         latest_df["XRP ≥ Thresh"] = latest_df["XRP ≥ Thresh"].apply(format_xrp_thresh)
 
 
