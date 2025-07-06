@@ -70,7 +70,15 @@ def format_int(val):
             return f"{v:,.4f}".rstrip('0').rstrip('.')
     except Exception:
         return val
-        
+
+
+def format_full_number(val):
+    try:
+        return f"{int(val):,}"
+    except Exception:
+        return val
+
+
 def format_millions(val):
     try:
         v = float(val)
@@ -252,17 +260,21 @@ with tab1:
     st.subheader(f"Chart: {file_to_title[csv_choice]}")
     if date_col is not None and 'value' in df.columns:
         df[date_col] = pd.to_datetime(df[date_col]).dt.date
+
+        # Plot chart (abbreviated y-axis)
         fig = px.line(
             df,
-            x=date_col,
+            x=date_col if date_col else df.columns[0],
             y='value',
             markers=True,
         )
         fig.update_traces(line=dict(width=3))
-        fig.update_yaxes(tickformat=",", title=y_label)
+        fig.update_yaxes(
+            tickformat="~s",  # Abbreviated y-axis: 1.2M, 53K, etc.
+            title="Total XRP" if "xrp" in file_to_title[csv_choice].lower() else "Wallet Count"
+        )
         fig.update_layout(
             xaxis_title="Date",
-            yaxis_tickformat=",",
             hovermode="x unified",
             hoverlabel=dict(namelength=-1),
             plot_bgcolor='#1e222d',
@@ -270,19 +282,31 @@ with tab1:
             font=dict(color='#F1F1F1'),
         )
         st.plotly_chart(fig, use_container_width=True)
+
+        # ---- Data Table with full value ----
+        df_display = df.copy()
+        if "wallet count" in file_to_title[csv_choice].lower():
+            df_display = df_display.rename(columns={"value": "Wallet Count"})
+            value_col = "Wallet Count"
+        else:
+            df_display = df_display.rename(columns={"value": "Total XRP"})
+            value_col = "Total XRP"
+        # Format the values as full numbers (with commas)
+        if value_col in df_display.columns:
+            df_display[value_col] = df_display[value_col].apply(format_full_number)
+
+        # Sort descending by date for table
+        df_display = df_display.sort_values(by=date_col, ascending=False).reset_index(drop=True)
+
         with st.expander("Show Data Table"):
-            # Sort by date descending, if there's a date column
-            df_display = df.copy()
-            if date_col is not None and date_col in df_display.columns:
-                df_display = df_display.sort_values(by=date_col, ascending=False).reset_index(drop=True)
             st.dataframe(
-                df_display.style.format({"value": format_millions}),
+                df_display[[date_col, value_col]],
                 use_container_width=True
             )
 
         st.download_button(
             label="Download this table as CSV",
-            data=df.to_csv(index=False).encode(),
+            data=df_display.to_csv(index=False).encode(),
             file_name=csv_choice,
             mime='text/csv',
         )
@@ -290,6 +314,7 @@ with tab1:
         st.warning("No 'date' or 'value' column found! Chart x-axis may not be time-based.")
 
     st.caption("Touch, zoom, and pan the chart. Made for XRP data nerds! 🚀")
+
 
 # ---- OPTIONAL TIP JAR ----
 st.sidebar.markdown("---")
