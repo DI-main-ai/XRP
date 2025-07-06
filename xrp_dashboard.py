@@ -164,7 +164,6 @@ with tab2:
         today_df = df[df["date"].dt.date == sel_date].copy()
         yesterday_df = df[df["date"].dt.date == (sel_date - pd.Timedelta(days=1))].copy()
 
-        # Column detection (robust to column order)
         columns = today_df.columns.tolist()
         data_cols = [c for c in columns if c != "date"][:3]
         today_df = today_df[["date"] + data_cols].reset_index(drop=True)
@@ -173,82 +172,18 @@ with tab2:
         if show_delta and not yesterday_df.empty:
             id_col = list(label_map.values())[1]
 
-            # Rename yesterday_df with same label_map
             yest_df = yesterday_df.copy()
             yest_df["date"] = pd.to_datetime(yest_df["date"])
             yest_df = yest_df[yest_df["date"].dt.date == (sel_date - pd.Timedelta(days=1))].copy()
             yest_df = yest_df[["date"] + data_cols].reset_index(drop=True)
             yest_df.columns = ["Date"] + list(label_map.values())
 
-            # Drop duplicates
             yest_df = yest_df.drop_duplicates(subset=[id_col])
             today_df = today_df.drop_duplicates(subset=[id_col])
 
-            # Select merge columns
             merge_cols = [id_col] + [c for c in list(label_map.values())[1:] if c != id_col]
             yest_df = yest_df[merge_cols]
 
-            # Remove duplicate columns if any
-            today_df = today_df.loc[:, ~today_df.columns.duplicated()]
-            yest_df = yest_df.loc[:, ~yest_df.columns.duplicated()]
-
-            if id_col not in yest_df.columns or id_col not in today_df.columns:
-                st.error(f"ID column '{id_col}' not found in one of the datasets.")
-            else:with tab2:
-    st.header("Current XRP Ledger Statistics")
-
-    ACCOUNTS_CSV = "current_stats_accounts_history.csv"
-    PERCENT_CSV  = "current_stats_percent_history.csv"
-
-    for table_name, fname, label_map in [
-        ("Number Of Accounts And Sum Of Balance Range", ACCOUNTS_CSV,
-         {"Accounts": "Accounts", "Balance Range (XRP)": "Balance Range (XRP)", "Sum in Range (XRP)": "Sum in Range (XRP)"}),
-        ("Percentage Of Accounts With Balances Greater Than Or Equal To", PERCENT_CSV,
-         {"Threshold (%)": "Threshold (%)", "Accounts ≥ Threshold": "Accounts ≥ Threshold", "XRP ≥ Threshold": "XRP ≥ Threshold"})
-    ]:
-        if not os.path.exists(fname):
-            st.info(f"{fname} not found.")
-            continue
-
-        df = pd.read_csv(fname)
-        if "date" not in df.columns:
-            st.warning(f"No date column in {fname}.")
-            continue
-
-        df["date"] = pd.to_datetime(df["date"])
-        date_options = sorted(df["date"].dt.date.unique(), reverse=True)
-        sel_date = st.selectbox(
-            f"Select Date for {table_name}:", date_options, 0, key=table_name)
-        show_delta = st.checkbox(f"Show change vs previous day", value=True, key=f"delta_{table_name}")
-
-        today_df = df[df["date"].dt.date == sel_date].copy()
-        yesterday_df = df[df["date"].dt.date == (sel_date - pd.Timedelta(days=1))].copy()
-
-        # Column detection (robust to column order)
-        columns = today_df.columns.tolist()
-        data_cols = [c for c in columns if c != "date"][:3]
-        today_df = today_df[["date"] + data_cols].reset_index(drop=True)
-        today_df.columns = ["Date"] + list(label_map.values())
-
-        if show_delta and not yesterday_df.empty:
-            id_col = list(label_map.values())[1]
-
-            # Rename yesterday_df with same label_map
-            yest_df = yesterday_df.copy()
-            yest_df["date"] = pd.to_datetime(yest_df["date"])
-            yest_df = yest_df[yest_df["date"].dt.date == (sel_date - pd.Timedelta(days=1))].copy()
-            yest_df = yest_df[["date"] + data_cols].reset_index(drop=True)
-            yest_df.columns = ["Date"] + list(label_map.values())
-
-            # Drop duplicates
-            yest_df = yest_df.drop_duplicates(subset=[id_col])
-            today_df = today_df.drop_duplicates(subset=[id_col])
-
-            # Select merge columns
-            merge_cols = [id_col] + [c for c in list(label_map.values())[1:] if c != id_col]
-            yest_df = yest_df[merge_cols]
-
-            # Remove duplicate columns if any
             today_df = today_df.loc[:, ~today_df.columns.duplicated()]
             yest_df = yest_df.loc[:, ~yest_df.columns.duplicated()]
 
@@ -257,15 +192,20 @@ with tab2:
             else:
                 try:
                     today_df = today_df.merge(yest_df, on=id_col, how="left", suffixes=('', '_prev'))
-                
-                    # Only compute delta for numeric columns that exist in both today and yesterday
-                    numeric_cols = [col for col in today_df.columns if col not in [id_col, "Date"] and "_prev" not in col]
-                
+
+                    # Only compute delta for numeric columns (not the ID column or text columns)
+                    numeric_cols = [
+                        col for col in today_df.columns
+                        if col not in [id_col, "Date"] and "_prev" not in col and
+                        pd.api.types.is_numeric_dtype(today_df[col])
+                    ]
+
                     for col_now in numeric_cols:
                         col_prev = f"{col_now}_prev"
                         if col_prev not in today_df.columns:
-                            continue  # Don't calculate delta for columns that didn't exist in previous day
-                
+                            st.warning(f"Missing column in merge: {col_prev}")
+                            continue
+
                         try:
                             delta = today_df[col_now] - today_df[col_prev]
                             percent = 100 * delta / today_df[col_prev]
@@ -273,15 +213,14 @@ with tab2:
                         except Exception:
                             delta = float("nan")
                             percent = float("nan")
-                
+
                         today_df[f"{col_now} Δ"] = delta
                         today_df[f"{col_now} Δ %"] = percent
-                
+
                     today_df = today_df[[c for c in today_df.columns if not c.endswith("_prev")]]
                 except Exception as e:
                     st.error(f"Error during merge: {e}")
 
-        # Format numbers for display
         for c in today_df.columns:
             if "Δ %" in c:
                 today_df[c] = today_df[c].apply(lambda v: f"{v:+.2f}%" if pd.notnull(v) else "")
@@ -303,7 +242,6 @@ with tab2:
     else:
         st.info("current_stats_accounts_history.csv not found.")
 
-    # ---- Final Summary Table at Bottom ----
     if os.path.exists(PERCENT_CSV):
         stat_df = pd.read_csv(PERCENT_CSV)
         if "date" in stat_df.columns:
@@ -335,40 +273,6 @@ with tab2:
     else:
         st.info("current_stats_percent_history.csv not found.")
 
-
-    # --- Percentage of Accounts with Balances Greater Than or Equal to ---
-    if os.path.exists(PERCENT_CSV):
-        stat_df = pd.read_csv(PERCENT_CSV)
-        if "date" in stat_df.columns:
-            stat_df['date'] = pd.to_datetime(stat_df['date'])
-            latest_date = stat_df['date'].max()
-            st.markdown(f"<span style='color:#aaa;'>Last updated: {latest_date.date()}</span>", unsafe_allow_html=True)
-            latest_df = stat_df[stat_df['date'] == latest_date].copy()
-        else:
-            latest_df = stat_df.copy()
-
-        # Guess columns: threshold, accounts, xrp
-        thresh_col = next((c for c in latest_df.columns if "%" in c or "thresh" in c.lower()), latest_df.columns[0])
-        accounts_col = next((c for c in latest_df.columns if "account" in c.lower()), latest_df.columns[1])
-        xrp_col = next((c for c in latest_df.columns if "xrp" in c.lower()), latest_df.columns[2])
-
-        latest_df = latest_df[[thresh_col, accounts_col, xrp_col]].copy()
-        latest_df.columns = ["Threshold (%)", "Accounts ≥ Thresh", "XRP ≥ Thresh"]
-
-        latest_df["Accounts ≥ Thresh"] = latest_df["Accounts ≥ Thresh"].apply(format_int)
-        latest_df["XRP ≥ Thresh"] = latest_df["XRP ≥ Thresh"].apply(format_xrp_thresh)
-
-
-        st.subheader("Percentage Of Accounts With Balances Greater Than Or Equal To")
-        st.dataframe(latest_df, use_container_width=True, hide_index=True)
-        st.download_button(
-            label=f"Download Percentage of Accounts with Balances ≥ Threshold",
-            data=latest_df.to_csv(index=False).encode(),
-            file_name="Percentage_of_Accounts_with_Balances_Greater_Than_or_Equal_to.csv",
-            mime='text/csv',
-        )
-    else:
-        st.info("current_stats_percent_history.csv not found.")
 
 with tab1:
     # Find all _Series1_DAILY_LATEST.csv files and map them to "base name" for dropdown
