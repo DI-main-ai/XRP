@@ -137,47 +137,80 @@ tab2, tab1 = st.tabs(["📋 Current Statistics", "📈 Rich List Charts"])
 with tab2:
     st.header("Current XRP Ledger Statistics")
 
-    # --- Number of Accounts and Sum of Balance Range ---
     ACCOUNTS_CSV = "current_stats_accounts_history.csv"
     PERCENT_CSV  = "current_stats_percent_history.csv"
 
-    if os.path.exists(ACCOUNTS_CSV):
-        stat_df = pd.read_csv(ACCOUNTS_CSV)
-        if "date" in stat_df.columns:
-            # Show latest available date
-            stat_df['date'] = pd.to_datetime(stat_df['date'])
-            latest_date = stat_df['date'].max()
-            st.markdown(f"<span style='color:#aaa;'>Last updated: {latest_date.date()}</span>", unsafe_allow_html=True)
-            latest_df = stat_df[stat_df['date'] == latest_date].copy()
-        else:
-            latest_df = stat_df.copy()
+    for table_name, fname, label_map in [
+        ("Number Of Accounts And Sum Of Balance Range", ACCOUNTS_CSV,
+         {"Accounts": "Accounts", "Balance Range (XRP)": "Balance Range (XRP)", "Sum in Range (XRP)": "Sum in Range (XRP)"}),
+        ("Percentage Of Accounts With Balances Greater Than Or Equal To", PERCENT_CSV,
+         {"Threshold (%)": "Threshold (%)", "Accounts ≥ Thresh": "Accounts ≥ Thresh", "XRP ≥ Thresh": "XRP ≥ Thresh"})
+    ]:
+        if not os.path.exists(fname):
+            st.info(f"{fname} not found.")
+            continue
 
-        # Fix columns and sort by descending range start
-        colnames = [c.lower() for c in latest_df.columns]
-        # Guess columns: accounts, range, sum
-        acc_col = next((c for c in latest_df.columns if "account" in c.lower() and "sum" not in c.lower()), latest_df.columns[0])
-        range_col = next((c for c in latest_df.columns if "range" in c.lower()), latest_df.columns[1])
-        sum_col = next((c for c in latest_df.columns if "sum" in c.lower() or "total" in c.lower()), latest_df.columns[2])
+        df = pd.read_csv(fname)
+        if "date" not in df.columns:
+            st.warning(f"No date column in {fname}.")
+            continue
 
-        latest_df = latest_df[[acc_col, range_col, sum_col]].copy()
-        latest_df.columns = ["Accounts", "Balance Range (XRP)", "Sum in Range (XRP)"]
+        df["date"] = pd.to_datetime(df["date"])
+        date_options = sorted(df["date"].dt.date.unique(), reverse=True)
+        sel_date = st.selectbox(
+            f"Select Date for {table_name}:", date_options, 0, key=table_name)
+        show_delta = st.checkbox(f"Show change vs previous day", value=True, key=f"delta_{table_name}")
 
-        # Sort by descending start of range
-        latest_df['__range_start'] = latest_df["Balance Range (XRP)"].apply(parse_range_start)
-        latest_df = latest_df.sort_values("__range_start", ascending=False).drop(columns="__range_start")
+        today_df = df[df["date"].dt.date == sel_date].copy()
+        yesterday_df = df[df["date"].dt.date == (sel_date - pd.Timedelta(days=1))].copy()
 
-        # Format numbers
-        latest_df["Accounts"] = latest_df["Accounts"].apply(format_int)
-        latest_df["Sum in Range (XRP)"] = latest_df["Sum in Range (XRP)"].apply(format_int)
+        # Column detection (robust to column order)
+        columns = today_df.columns.tolist()
+        # Try to get main 3 columns after 'date'
+        data_cols = [c for c in columns if c != "date"][:3]
+        today_df = today_df[["date"] + data_cols].reset_index(drop=True)
+        today_df.columns = ["Date"] + list(label_map.values())
 
-        st.subheader("Number Of Accounts And Sum Of Balance Range")
-        st.dataframe(latest_df, use_container_width=True, hide_index=True)
+        if show_delta and not yesterday_df.empty:
+            yest_df = yesterday_df.reset_index(drop=True)
+            # Match rows by "Balance Range (XRP)" or "Threshold (%)"
+            id_col = list(label_map.values())[1]
+            yest_df = yest_df[[id_col] + data_cols[1:]]
+            today_df = today_df.merge(yest_df, left_on=id_col, right_on=id_col, suffixes=('', '_prev'))
+            for col in data_cols[1:]:
+                col_now = label_map[col]
+                col_prev = f"{col}_prev"
+                delta = today_df[col_now] - today_df[col_prev]
+                # Try to get percent change if numbers
+                try:
+                    percent = 100 * delta / today_df[col_prev]
+                    percent = percent.replace([float("inf"), -float("inf")], float("nan"))
+                except Exception:
+                    percent = float("nan")
+                today_df[f"{col_now} Δ"] = delta
+                today_df[f"{col_now} Δ %"] = percent
+            # Remove prev columns
+            today_df = today_df[[c for c in today_df.columns if not c.endswith("_prev")]]
+
+        # Format numbers for display
+        for c in today_df.columns:
+            if "Δ %" in c:
+                today_df[c] = today_df[c].apply(lambda v: f"{v:+.2f}%" if pd.notnull(v) else "")
+            elif "Δ" in c:
+                today_df[c] = today_df[c].apply(lambda v: f"{v:+,.0f}" if pd.notnull(v) and str(v).replace('.','',1).replace('-','').isdigit() else "")
+            elif "Accounts" in c or "Sum" in c or "XRP" in c:
+                today_df[c] = today_df[c].apply(format_int)
+
+        st.subheader(table_name)
+        st.markdown(f"<span style='color:#aaa;'>Date: {sel_date}</span>", unsafe_allow_html=True)
+        st.dataframe(today_df.drop(columns="Date"), use_container_width=True, hide_index=True)
         st.download_button(
-            label=f"Download Number of Accounts and Sum of Balance Range",
-            data=latest_df.to_csv(index=False).encode(),
-            file_name="Number_of_Accounts_and_Sum_of_Balance_Range.csv",
+            label=f"Download {table_name}",
+            data=today_df.to_csv(index=False).encode(),
+            file_name=f"{table_name.replace(' ', '_')}_{sel_date}.csv",
             mime='text/csv',
         )
+
     else:
         st.info("current_stats_accounts_history.csv not found.")
 
