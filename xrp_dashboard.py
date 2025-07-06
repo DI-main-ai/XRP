@@ -173,10 +173,17 @@ with tab2:
 
         if show_delta and not yesterday_df.empty:
             yest_df = yesterday_df.reset_index(drop=True)
-            # Match rows by "Balance Range (XRP)" or "Threshold (%)"
             id_col = list(label_map.values())[1]
+
+            # Make sure each merge key appears only once per day (take the first if duplicates)
+            yest_df = yest_df.drop_duplicates(subset=[id_col])
+            today_df = today_df.drop_duplicates(subset=[id_col])
+
             yest_df = yest_df[[id_col] + data_cols[1:]]
-            today_df = today_df.merge(yest_df, left_on=id_col, right_on=id_col, suffixes=('', '_prev'))
+
+            # Now do the merge
+            today_df = today_df.merge(yest_df, on=id_col, how="left", suffixes=('', '_prev'))
+
             for col in data_cols[1:]:
                 col_now = label_map[col]
                 col_prev = f"{col}_prev"
