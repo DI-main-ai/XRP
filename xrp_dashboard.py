@@ -167,20 +167,20 @@ with tab2:
         latest_df.columns = ["Threshold (%)", "Accounts ≥ Thresh", "XRP ≥ Thresh"]
 
         latest_df["Accounts ≥ Thresh"] = latest_df["Accounts ≥ Thresh"].apply(format_int)
-       def format_xrp_thresh(x):
-        try:
-            # If it's a string with a space, get the numeric part and format it with commas
-            if isinstance(x, str) and " " in x:
-                val = x.split()[0].replace(",", "")
-                return f"{float(val):,.4f} XRP" if "." in val else f"{int(float(val)):,} XRP"
-            elif pd.isna(x):
-                return ""
-            else:
-                v = float(x)
-                return f"{v:,.4f} XRP" if not v.is_integer() else f"{int(v):,} XRP"
-        except Exception:
-            return str(x)
-
+        def format_xrp_thresh(x):
+            try:
+                # If it's a string with a space, get the numeric part and format it with commas
+                if isinstance(x, str) and " " in x:
+                    val = x.split()[0].replace(",", "")
+                    return f"{float(val):,.4f} XRP" if "." in val else f"{int(float(val)):,} XRP"
+                elif pd.isna(x):
+                    return ""
+                else:
+                    v = float(x)
+                    return f"{v:,.4f} XRP" if not v.is_integer() else f"{int(v):,} XRP"
+            except Exception:
+                return str(x)
+        
         latest_df["XRP ≥ Thresh"] = latest_df["XRP ≥ Thresh"].apply(format_xrp_thresh)
 
 
