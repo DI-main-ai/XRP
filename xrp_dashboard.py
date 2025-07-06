@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.express as px
 import os
 import re
+from datetime import datetime
 
 # ----- DARK THEME INJECT -----
 st.set_page_config(page_title="XRP Rich List Dashboard", initial_sidebar_state="collapsed", layout="wide")
@@ -60,6 +61,24 @@ st.markdown("""
 
 st.title("📊 XRP Rich List Interactive Dashboard")
 
+def format_int(val):
+    try:
+        v = float(val)
+        if v.is_integer():
+            return f"{int(v):,}"
+        else:
+            return f"{v:,.4f}".rstrip('0').rstrip('.')
+    except Exception:
+        return val
+
+def parse_range_start(range_str):
+    # Get the starting number of a range "X - Y"
+    if isinstance(range_str, str):
+        match = re.match(r"^\s*([\d,]+)", range_str)
+        if match:
+            return int(match.group(1).replace(",", ""))
+    return -1
+
 def pretty_name(name):
     name = name.replace('_', ' ').replace('.csv', '').replace('-', '–')
     name = name.replace('Infinity', '∞')
@@ -78,93 +97,88 @@ def extract_leading_number(name):
 def is_not_number_start(name):
     return not re.match(r"^\d", name)
 
-def format_millions(val):
-    try:
-        v = float(val)
-    except Exception:
-        return val
-    if abs(v) >= 1e9:
-        return f"{v/1e9:,.2f}B"
-    elif abs(v) >= 1e6:
-        return f"{v/1e6:,.2f}M"
-    elif abs(v) >= 1e3:
-        return f"{v/1e3:,.2f}K"
-    else:
-        return f"{v:,}"
-
-def parse_range_low(x):
-    # Extract lowest number from range string like '10,000 - 25,000'
-    if pd.isnull(x):
-        return float('inf')
-    x = str(x)
-    if "Infinity" in x:
-        return float('inf')
-    x = x.split("-")[0].replace(",", "").strip()
-    try:
-        return float(x)
-    except:
-        return float('inf')
-
-def format_commas(val):
-    try:
-        # Handles values like 1,234.56 or 1234 or "5,000 XRP"
-        s = str(val).replace(",", "").replace("XRP", "").strip()
-        # Don't format as int if it has a decimal
-        if '.' in s:
-            n = float(s)
-            return f"{n:,.4f}".rstrip('0').rstrip('.')
-        else:
-            return f"{int(float(s)):,}"
-    except Exception:
-        return val
-
 # ---- MAIN TABS ----
 tab2, tab1 = st.tabs(["📋 Current Statistics", "📈 Rich List Charts"])
 
 with tab2:
     st.header("Current XRP Ledger Statistics")
 
-    # ------- ACCOUNTS TABLE (current_stats_accounts_history.csv) -------
-    if os.path.exists("current_stats_accounts_history.csv"):
-        accounts_df = pd.read_csv("current_stats_accounts_history.csv")
-        latest_date = accounts_df['date'].max()
-        latest_accounts = accounts_df[accounts_df['date'] == latest_date].copy()
-        # Format columns
-        latest_accounts["Accounts"] = latest_accounts["Accounts"].apply(format_commas)
-        latest_accounts["Sum in Range (XRP)"] = latest_accounts["Sum in Range (XRP)"].apply(format_commas)
-        # Order by low end of range
-        latest_accounts = latest_accounts.sort_values(by="Balance Range (XRP)", key=lambda col: col.map(parse_range_low))
-        latest_accounts = latest_accounts[["Accounts", "Balance Range (XRP)", "Sum in Range (XRP)"]]
-        st.subheader("Number Of Accounts And Sum Of Balance Range")
-        st.caption(f"Last updated: {latest_date}")
-        st.dataframe(latest_accounts, use_container_width=True, hide_index=True)
-        st.download_button(
-            label=f"Download Number of Accounts and Sum of Balance Range.csv",
-            data=latest_accounts.to_csv(index=False).encode(),
-            file_name="Number of Accounts and Sum of Balance Range.csv",
-            mime='text/csv',
-        )
-    else:
-        st.warning("current_stats_accounts_history.csv not found.")
+    # --- Number of Accounts and Sum of Balance Range ---
+    ACCOUNTS_CSV = "current_stats_accounts_history.csv"
+    PERCENT_CSV  = "current_stats_percent_history.csv"
 
-    # ------- PERCENT TABLE (current_stats_percent_history.csv) -------
-    if os.path.exists("current_stats_percent_history.csv"):
-        percent_df = pd.read_csv("current_stats_percent_history.csv")
-        latest_date = percent_df['date'].max()
-        latest_percent = percent_df[percent_df['date'] == latest_date].copy()
-        latest_percent["Accounts ≥ Threshold"] = latest_percent["Accounts ≥ Threshold"].apply(format_commas)
-        # "XRP ≥ Threshold" already has units, just display as is.
-        st.subheader("Percentage Of Accounts With Balances Greater Than Or Equal To")
-        st.caption(f"Last updated: {latest_date}")
-        st.dataframe(latest_percent[["Threshold (%)", "Accounts ≥ Threshold", "XRP ≥ Threshold"]], use_container_width=True, hide_index=True)
+    if os.path.exists(ACCOUNTS_CSV):
+        stat_df = pd.read_csv(ACCOUNTS_CSV)
+        if "date" in stat_df.columns:
+            # Show latest available date
+            stat_df['date'] = pd.to_datetime(stat_df['date'])
+            latest_date = stat_df['date'].max()
+            st.markdown(f"<span style='color:#aaa;'>Last updated: {latest_date.date()}</span>", unsafe_allow_html=True)
+            latest_df = stat_df[stat_df['date'] == latest_date].copy()
+        else:
+            latest_df = stat_df.copy()
+
+        # Fix columns and sort by descending range start
+        colnames = [c.lower() for c in latest_df.columns]
+        # Guess columns: accounts, range, sum
+        acc_col = next((c for c in latest_df.columns if "account" in c.lower() and "sum" not in c.lower()), latest_df.columns[0])
+        range_col = next((c for c in latest_df.columns if "range" in c.lower()), latest_df.columns[1])
+        sum_col = next((c for c in latest_df.columns if "sum" in c.lower() or "total" in c.lower()), latest_df.columns[2])
+
+        latest_df = latest_df[[acc_col, range_col, sum_col]].copy()
+        latest_df.columns = ["Accounts", "Balance Range (XRP)", "Sum in Range (XRP)"]
+
+        # Sort by descending start of range
+        latest_df['__range_start'] = latest_df["Balance Range (XRP)"].apply(parse_range_start)
+        latest_df = latest_df.sort_values("__range_start", ascending=False).drop(columns="__range_start")
+
+        # Format numbers
+        latest_df["Accounts"] = latest_df["Accounts"].apply(format_int)
+        latest_df["Sum in Range (XRP)"] = latest_df["Sum in Range (XRP)"].apply(format_int)
+
+        st.subheader("Number Of Accounts And Sum Of Balance Range")
+        st.dataframe(latest_df, use_container_width=True, hide_index=True)
         st.download_button(
-            label=f"Download Percentage of Accounts with Balances Greater Than or Equal to.csv",
-            data=latest_percent.to_csv(index=False).encode(),
-            file_name="Percentage of Accounts with Balances Greater Than or Equal to.csv",
+            label=f"Download Number of Accounts and Sum of Balance Range",
+            data=latest_df.to_csv(index=False).encode(),
+            file_name="Number_of_Accounts_and_Sum_of_Balance_Range.csv",
             mime='text/csv',
         )
     else:
-        st.warning("current_stats_percent_history.csv not found.")
+        st.info("current_stats_accounts_history.csv not found.")
+
+    # --- Percentage of Accounts with Balances Greater Than or Equal to ---
+    if os.path.exists(PERCENT_CSV):
+        stat_df = pd.read_csv(PERCENT_CSV)
+        if "date" in stat_df.columns:
+            stat_df['date'] = pd.to_datetime(stat_df['date'])
+            latest_date = stat_df['date'].max()
+            st.markdown(f"<span style='color:#aaa;'>Last updated: {latest_date.date()}</span>", unsafe_allow_html=True)
+            latest_df = stat_df[stat_df['date'] == latest_date].copy()
+        else:
+            latest_df = stat_df.copy()
+
+        # Guess columns: threshold, accounts, xrp
+        thresh_col = next((c for c in latest_df.columns if "%" in c or "thresh" in c.lower()), latest_df.columns[0])
+        accounts_col = next((c for c in latest_df.columns if "account" in c.lower()), latest_df.columns[1])
+        xrp_col = next((c for c in latest_df.columns if "xrp" in c.lower()), latest_df.columns[2])
+
+        latest_df = latest_df[[thresh_col, accounts_col, xrp_col]].copy()
+        latest_df.columns = ["Threshold (%)", "Accounts ≥ Thresh", "XRP ≥ Thresh"]
+
+        latest_df["Accounts ≥ Thresh"] = latest_df["Accounts ≥ Thresh"].apply(format_int)
+        latest_df["XRP ≥ Thresh"] = latest_df["XRP ≥ Thresh"].apply(lambda x: f"{x.split()[0]:,} XRP" if isinstance(x, str) and " " in x else format_int(x))
+
+        st.subheader("Percentage Of Accounts With Balances Greater Than Or Equal To")
+        st.dataframe(latest_df, use_container_width=True, hide_index=True)
+        st.download_button(
+            label=f"Download Percentage of Accounts with Balances ≥ Threshold",
+            data=latest_df.to_csv(index=False).encode(),
+            file_name="Percentage_of_Accounts_with_Balances_Greater_Than_or_Equal_to.csv",
+            mime='text/csv',
+        )
+    else:
+        st.info("current_stats_percent_history.csv not found.")
 
 with tab1:
     # Find all _Series1_DAILY_LATEST.csv files and map them to "base name" for dropdown
@@ -172,13 +186,11 @@ with tab1:
         f for f in os.listdir('.')
         if f.endswith('_Series1_DAILY_LATEST.csv')
     ]
-    # Map base names for dropdown
     file_to_title = {
         f: f.replace('_Series1_DAILY_LATEST.csv', '').replace('_', ' ').replace('-', '–').replace('Infinity', '∞').strip()
         for f in csv_files
     }
 
-    # Sort: non-numeric first (alphabetical), then numeric (by leading number)
     non_num = sorted(
         [f for f, title in file_to_title.items() if is_not_number_start(title)],
         key=lambda x: file_to_title[x]
@@ -206,43 +218,44 @@ with tab1:
             date_col = col
             break
 
-    if date_col is not None:
-        df[date_col] = pd.to_datetime(df[date_col]).dt.date
-    else:
-        st.warning("No 'date' column found! Chart x-axis may not be time-based.")
+    y_label = "XRP"
+    if "wallet" in file_to_title[csv_choice].lower():
+        y_label = "Wallet Count"
 
     st.subheader(f"Chart: {file_to_title[csv_choice]}")
-    fig = px.line(
-        df,
-        x=date_col if date_col else df.columns[0],
-        y='value',
-        markers=True,
-    )
-    fig.update_traces(line=dict(width=3))
-    fig.update_yaxes(tickformat=",", title="XRP")
-    fig.update_layout(
-        xaxis_title="Date",
-        yaxis_tickformat=",",
-        hovermode="x unified",
-        hoverlabel=dict(namelength=-1),
-        plot_bgcolor='#1e222d',
-        paper_bgcolor='#1e222d',
-        font=dict(color='#F1F1F1'),
-    )
-    st.plotly_chart(fig, use_container_width=True)
-
-    with st.expander("Show Data Table"):
-        st.dataframe(
-            df.style.format({"value": format_millions}),
-            use_container_width=True
+    if date_col is not None and 'value' in df.columns:
+        df[date_col] = pd.to_datetime(df[date_col]).dt.date
+        fig = px.line(
+            df,
+            x=date_col,
+            y='value',
+            markers=True,
         )
-
-    st.download_button(
-        label="Download this table as CSV",
-        data=df.to_csv(index=False).encode(),
-        file_name=csv_choice,
-        mime='text/csv',
-    )
+        fig.update_traces(line=dict(width=3))
+        fig.update_yaxes(tickformat=",", title=y_label)
+        fig.update_layout(
+            xaxis_title="Date",
+            yaxis_tickformat=",",
+            hovermode="x unified",
+            hoverlabel=dict(namelength=-1),
+            plot_bgcolor='#1e222d',
+            paper_bgcolor='#1e222d',
+            font=dict(color='#F1F1F1'),
+        )
+        st.plotly_chart(fig, use_container_width=True)
+        with st.expander("Show Data Table"):
+            st.dataframe(
+                df.style.format({"value": format_int}),
+                use_container_width=True
+            )
+        st.download_button(
+            label="Download this table as CSV",
+            data=df.to_csv(index=False).encode(),
+            file_name=csv_choice,
+            mime='text/csv',
+        )
+    else:
+        st.warning("No 'date' or 'value' column found! Chart x-axis may not be time-based.")
 
     st.caption("Touch, zoom, and pan the chart. Made for XRP data nerds! 🚀")
 
