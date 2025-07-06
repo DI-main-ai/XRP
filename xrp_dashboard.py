@@ -175,29 +175,41 @@ with tab2:
             yest_df = yesterday_df.reset_index(drop=True)
             id_col = list(label_map.values())[1]
 
-            # Make sure each merge key appears only once per day (take the first if duplicates)
-            yest_df = yest_df.drop_duplicates(subset=[id_col])
-            today_df = today_df.drop_duplicates(subset=[id_col])
+            # 🛡 Defensive checks for existence of id_col
+            if id_col not in yest_df.columns or id_col not in today_df.columns:
+                st.error(f"ID column '{id_col}' not found in one of the datasets.")
+            else:
+                # 🧹 Clean duplicates and keep only the first occurrence
+                yest_df = yest_df.drop_duplicates(subset=[id_col])
+                today_df = today_df.drop_duplicates(subset=[id_col])
 
-            yest_df = yest_df[[id_col] + data_cols[1:]]
+                # 🧪 Ensure uniqueness of the merge key
+                if not yest_df[id_col].is_unique:
+                    st.warning(f"Duplicates still exist in yesterday's data for key '{id_col}'. Using first occurrences only.")
+                    yest_df = yest_df.groupby(id_col).first().reset_index()
 
-            # Now do the merge
-            today_df = today_df.merge(yest_df, on=id_col, how="left", suffixes=('', '_prev'))
+                yest_df = yest_df[[id_col] + data_cols[1:]]
 
-            for col in data_cols[1:]:
-                col_now = label_map[col]
-                col_prev = f"{col}_prev"
-                delta = today_df[col_now] - today_df[col_prev]
-                # Try to get percent change if numbers
                 try:
-                    percent = 100 * delta / today_df[col_prev]
-                    percent = percent.replace([float("inf"), -float("inf")], float("nan"))
-                except Exception:
-                    percent = float("nan")
-                today_df[f"{col_now} Δ"] = delta
-                today_df[f"{col_now} Δ %"] = percent
-            # Remove prev columns
-            today_df = today_df[[c for c in today_df.columns if not c.endswith("_prev")]]
+                    today_df = today_df.merge(yest_df, on=id_col, how="left", suffixes=('', '_prev'))
+            
+                    for col in data_cols[1:]:
+                        col_now = label_map[col]
+                        col_prev = f"{col}_prev"
+                        delta = today_df[col_now] - today_df[col_prev]
+                        # Try to get percent change if numbers
+                        try:
+                            percent = 100 * delta / today_df[col_prev]
+                            percent = percent.replace([float("inf"), -float("inf")], float("nan"))
+                        except Exception:
+                            percent = float("nan")
+                        today_df[f"{col_now} Δ"] = delta
+                        today_df[f"{col_now} Δ %"] = percent
+
+                    # Remove prev columns
+                    today_df = today_df[[c for c in today_df.columns if not c.endswith("_prev")]]
+                except Exception as e:
+                    st.error(f"Error during merge: {e}")
 
         # Format numbers for display
         for c in today_df.columns:
