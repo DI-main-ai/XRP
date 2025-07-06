@@ -259,10 +259,15 @@ with tab1:
         )
         st.plotly_chart(fig, use_container_width=True)
         with st.expander("Show Data Table"):
+            # Sort by date descending, if there's a date column
+            df_display = df.copy()
+            if date_col is not None and date_col in df_display.columns:
+                df_display = df_display.sort_values(by=date_col, ascending=False).reset_index(drop=True)
             st.dataframe(
-                df.style.format({"value": format_int}),
+                df_display.style.format({"value": format_millions}),
                 use_container_width=True
             )
+
         st.download_button(
             label="Download this table as CSV",
             data=df.to_csv(index=False).encode(),
