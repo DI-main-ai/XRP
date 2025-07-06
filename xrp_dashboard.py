@@ -198,9 +198,16 @@ with tab2:
                 try:
                     today_df = today_df.merge(yest_df, on=id_col, how="left", suffixes=('', '_prev'))
 
-                    for col in data_cols[1:]:
+                    for col in label_map:
                         col_now = label_map[col]
-                        col_prev = f"{col}_prev"
+                        if col_now == id_col:
+                            continue  # Don't try to calculate deltas for the ID column
+
+                        col_prev = f"{col_now}_prev"
+                        if col_prev not in today_df.columns:
+                            st.warning(f"Missing column in merge: {col_prev}")
+                            continue
+
                         delta = today_df[col_now] - today_df[col_prev]
                         try:
                             percent = 100 * delta / today_df[col_prev]
