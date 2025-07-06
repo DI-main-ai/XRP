@@ -194,29 +194,89 @@ with tab2:
 
             if id_col not in yest_df.columns or id_col not in today_df.columns:
                 st.error(f"ID column '{id_col}' not found in one of the datasets.")
+            else:with tab2:
+    st.header("Current XRP Ledger Statistics")
+
+    ACCOUNTS_CSV = "current_stats_accounts_history.csv"
+    PERCENT_CSV  = "current_stats_percent_history.csv"
+
+    for table_name, fname, label_map in [
+        ("Number Of Accounts And Sum Of Balance Range", ACCOUNTS_CSV,
+         {"Accounts": "Accounts", "Balance Range (XRP)": "Balance Range (XRP)", "Sum in Range (XRP)": "Sum in Range (XRP)"}),
+        ("Percentage Of Accounts With Balances Greater Than Or Equal To", PERCENT_CSV,
+         {"Threshold (%)": "Threshold (%)", "Accounts ≥ Threshold": "Accounts ≥ Threshold", "XRP ≥ Threshold": "XRP ≥ Threshold"})
+    ]:
+        if not os.path.exists(fname):
+            st.info(f"{fname} not found.")
+            continue
+
+        df = pd.read_csv(fname)
+        if "date" not in df.columns:
+            st.warning(f"No date column in {fname}.")
+            continue
+
+        df["date"] = pd.to_datetime(df["date"])
+        date_options = sorted(df["date"].dt.date.unique(), reverse=True)
+        sel_date = st.selectbox(
+            f"Select Date for {table_name}:", date_options, 0, key=table_name)
+        show_delta = st.checkbox(f"Show change vs previous day", value=True, key=f"delta_{table_name}")
+
+        today_df = df[df["date"].dt.date == sel_date].copy()
+        yesterday_df = df[df["date"].dt.date == (sel_date - pd.Timedelta(days=1))].copy()
+
+        # Column detection (robust to column order)
+        columns = today_df.columns.tolist()
+        data_cols = [c for c in columns if c != "date"][:3]
+        today_df = today_df[["date"] + data_cols].reset_index(drop=True)
+        today_df.columns = ["Date"] + list(label_map.values())
+
+        if show_delta and not yesterday_df.empty:
+            id_col = list(label_map.values())[1]
+
+            # Rename yesterday_df with same label_map
+            yest_df = yesterday_df.copy()
+            yest_df["date"] = pd.to_datetime(yest_df["date"])
+            yest_df = yest_df[yest_df["date"].dt.date == (sel_date - pd.Timedelta(days=1))].copy()
+            yest_df = yest_df[["date"] + data_cols].reset_index(drop=True)
+            yest_df.columns = ["Date"] + list(label_map.values())
+
+            # Drop duplicates
+            yest_df = yest_df.drop_duplicates(subset=[id_col])
+            today_df = today_df.drop_duplicates(subset=[id_col])
+
+            # Select merge columns
+            merge_cols = [id_col] + [c for c in list(label_map.values())[1:] if c != id_col]
+            yest_df = yest_df[merge_cols]
+
+            # Remove duplicate columns if any
+            today_df = today_df.loc[:, ~today_df.columns.duplicated()]
+            yest_df = yest_df.loc[:, ~yest_df.columns.duplicated()]
+
+            if id_col not in yest_df.columns or id_col not in today_df.columns:
+                st.error(f"ID column '{id_col}' not found in one of the datasets.")
             else:
                 try:
                     today_df = today_df.merge(yest_df, on=id_col, how="left", suffixes=('', '_prev'))
-
-                    for col in label_map:
-                        col_now = label_map[col]
-                        if col_now == id_col:
-                            continue  # Don't try to calculate deltas for the ID column
-
+                
+                    # Only compute delta for numeric columns that exist in both today and yesterday
+                    numeric_cols = [col for col in today_df.columns if col not in [id_col, "Date"] and "_prev" not in col]
+                
+                    for col_now in numeric_cols:
                         col_prev = f"{col_now}_prev"
                         if col_prev not in today_df.columns:
-                            st.warning(f"Missing column in merge: {col_prev}")
-                            continue
-
-                        delta = today_df[col_now] - today_df[col_prev]
+                            continue  # Don't calculate delta for columns that didn't exist in previous day
+                
                         try:
+                            delta = today_df[col_now] - today_df[col_prev]
                             percent = 100 * delta / today_df[col_prev]
                             percent = percent.replace([float("inf"), -float("inf")], float("nan"))
                         except Exception:
+                            delta = float("nan")
                             percent = float("nan")
+                
                         today_df[f"{col_now} Δ"] = delta
                         today_df[f"{col_now} Δ %"] = percent
-
+                
                     today_df = today_df[[c for c in today_df.columns if not c.endswith("_prev")]]
                 except Exception as e:
                     st.error(f"Error during merge: {e}")
