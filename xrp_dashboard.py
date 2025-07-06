@@ -140,10 +140,27 @@ with tab2:
     ACCOUNTS_CSV = "current_stats_accounts_history.csv"
     PERCENT_CSV  = "current_stats_percent_history.csv"
 
+    def normalize_threshold(x):
+        if pd.isna(x): return None
+        if isinstance(x, str):
+            x = x.replace('%','').strip()
+        try:
+            return float(x)
+        except:
+            return x
+
+    def normalize_balance_range(x):
+        if pd.isna(x): return None
+        if isinstance(x, str):
+            x = x.replace(',','').split('-')[0].strip()
+        try:
+            return float(x)
+        except:
+            return x
+
     def calc_and_display_delta_table(
-        df, id_col, delta_cols, table_name, date_col="date"
+        df, id_col, delta_cols, table_name, date_col="date", normalize_key_func=None
     ):
-        # --- DATE PICKER ---
         df[date_col] = pd.to_datetime(df[date_col], errors='coerce', infer_datetime_format=True)
         if df[date_col].isnull().any():
             st.warning(f"Some rows in {table_name} have invalid date format.")
@@ -162,7 +179,6 @@ with tab2:
         today_df = today_df.drop_duplicates(subset=[id_col])
         yest_df = yest_df.drop_duplicates(subset=[id_col])
 
-        # -- Drop extra columns to just keep what matters --
         keep_cols = [date_col] + [id_col] + delta_cols
         today_df = today_df[keep_cols].reset_index(drop=True)
         yest_df = yest_df[keep_cols].reset_index(drop=True)
@@ -177,14 +193,21 @@ with tab2:
         }
         today_df.columns = [c if c not in pretty_map else pretty_map[c] for c in today_df.columns]
         yest_df.columns = [c if c not in pretty_map else pretty_map[c] for c in yest_df.columns]
-
         id_col_pretty = id_col if id_col not in pretty_map else pretty_map[id_col]
+
+        # --- Use normalized key column for merge if needed ---
+        if normalize_key_func is not None:
+            today_df["MergeKey"] = today_df[id_col_pretty].apply(normalize_key_func)
+            yest_df["MergeKey"] = yest_df[id_col_pretty].apply(normalize_key_func)
+            merge_id = "MergeKey"
+        else:
+            merge_id = id_col_pretty
 
         # --- Merge for delta ---
         if show_delta and not yest_df.empty:
             merged = today_df.merge(
                 yest_df,
-                on=id_col_pretty,
+                on=merge_id,
                 how="left",
                 suffixes=('', '_prev')
             )
@@ -196,8 +219,8 @@ with tab2:
                     merged[f"{col_pretty} Δ"] = merged[col_pretty] - merged[col_prev]
                 else:
                     merged[f"{col_pretty} Δ"] = ""
-            # Drop prev columns and keep order
-            keep = [col for col in merged.columns if not col.endswith("_prev")]
+            # Drop prev and merge key columns, keep order
+            keep = [c for c in merged.columns if not c.endswith("_prev") and c != "MergeKey"]
             today_df = merged[keep]
         # Formatting
         for c in today_df.columns:
@@ -205,7 +228,6 @@ with tab2:
                 today_df[c] = today_df[c].apply(lambda v: f"{v:+,}" if pd.notnull(v) and str(v).replace('.','',1).replace('-','').isdigit() else "")
             elif "Accounts" in c or "Sum" in c or "XRP" in c:
                 today_df[c] = today_df[c].apply(format_int)
-
         st.subheader(table_name)
         st.markdown(f"<span style='color:#aaa;'>Date: {sel_date}</span>", unsafe_allow_html=True)
         st.dataframe(today_df.drop(columns=[date_col]), use_container_width=True, hide_index=True)
@@ -216,57 +238,28 @@ with tab2:
             mime='text/csv',
         )
 
-    # --- Table 1: Number Of Accounts And Sum Of Balance Range ---
+    # Table 1: Number Of Accounts And Sum Of Balance Range
     if os.path.exists(ACCOUNTS_CSV):
         df = pd.read_csv(ACCOUNTS_CSV)
-        # Use Balance Range (XRP) as id, show delta for Accounts and Sum in Range
-        # Remove % delta column for Sum
         calc_and_display_delta_table(
             df,
             id_col="Balance Range (XRP)",
             delta_cols=["Accounts", "Sum in Range (XRP)"],
-            table_name="Number Of Accounts And Sum Of Balance Range"
+            table_name="Number Of Accounts And Sum Of Balance Range",
+            normalize_key_func=normalize_balance_range
         )
     else:
         st.info("current_stats_accounts_history.csv not found.")
 
-    # --- Table 2: Percentage Of Accounts With Balances Greater Than Or Equal To ---
+    # Table 2: Percentage Of Accounts With Balances Greater Than Or Equal To
     if os.path.exists(PERCENT_CSV):
         df = pd.read_csv(PERCENT_CSV)
-        # Use Threshold (%) as id, show delta for Accounts ≥ Threshold and XRP ≥ Threshold
         calc_and_display_delta_table(
             df,
             id_col="Threshold (%)",
             delta_cols=["Accounts ≥ Threshold", "XRP ≥ Threshold"],
-            table_name="Percentage Of Accounts With Balances Greater Than Or Equal To"
-        )
-        # Latest "live" table (below, no delta, always latest)
-        stat_df = df.copy()
-        if "date" in stat_df.columns:
-            stat_df['date'] = pd.to_datetime(stat_df['date'], errors='coerce', infer_datetime_format=True)
-            latest_date = stat_df['date'].max()
-            st.markdown(f"<span style='color:#aaa;'>Last updated: {latest_date.date()}</span>", unsafe_allow_html=True)
-            latest_df = stat_df[stat_df['date'] == latest_date].copy()
-        else:
-            latest_df = stat_df.copy()
-
-        thresh_col = next((c for c in latest_df.columns if "%" in c or "thresh" in c.lower()), latest_df.columns[0])
-        accounts_col = next((c for c in latest_df.columns if "account" in c.lower()), latest_df.columns[1])
-        xrp_col = next((c for c in latest_df.columns if "xrp" in c.lower()), latest_df.columns[2])
-
-        latest_df = latest_df[[thresh_col, accounts_col, xrp_col]].copy()
-        latest_df.columns = ["Threshold (%)", "Accounts ≥ Threshold", "XRP ≥ Threshold"]
-
-        latest_df["Accounts ≥ Threshold"] = latest_df["Accounts ≥ Threshold"].apply(format_int)
-        latest_df["XRP ≥ Threshold"] = latest_df["XRP ≥ Threshold"].apply(format_xrp_thresh)
-
-        st.subheader("Percentage Of Accounts With Balances Greater Than Or Equal To")
-        st.dataframe(latest_df, use_container_width=True, hide_index=True)
-        st.download_button(
-            label=f"Download Percentage of Accounts with Balances ≥ Threshold",
-            data=latest_df.to_csv(index=False).encode(),
-            file_name="Percentage_of_Accounts_with_Balances_Greater_Than_or_Equal_to.csv",
-            mime='text/csv',
+            table_name="Percentage Of Accounts With Balances Greater Than Or Equal To",
+            normalize_key_func=normalize_threshold
         )
     else:
         st.info("current_stats_percent_history.csv not found.")
