@@ -158,6 +158,16 @@ with tab2:
         except:
             return x
 
+    def normalize_threshold(val):
+        """Convert thresholds like '0.01 %' to float 0.01 for matching/merging."""
+        try:
+            if isinstance(val, str):
+                return float(val.replace('%','').replace(',','').strip())
+            return float(val)
+        except Exception:
+            return None
+
+    
     def calc_and_display_delta_table(
         df, id_col, delta_cols, table_name, date_col="date", normalize_key_func=None
     ):
