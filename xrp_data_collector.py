@@ -16,11 +16,14 @@ headers = {"User-Agent": "Mozilla/5.0"}
 # Step 1: Fetch the page and parse with BeautifulSoup
 r = requests.get(url, headers=headers, timeout=15)
 r.raise_for_status()
+with open("downloaded_richlist.html", "w", encoding="utf-8") as f:
+    f.write(r.text)
+print("Downloaded main page, length:", len(r.text))
 soup = BeautifulSoup(r.text, 'html.parser')
 
-# Step 2: Extract "Last updated" timestamp
+# Step 2: Extract "Last updated" timestamp (case-insensitive, colon optional)
 last_updated_text = None
-for tag in soup.find_all(string=re.compile("Last updated:")):
+for tag in soup.find_all(string=re.compile(r"last\s*updated", re.I)):
     last_updated_text = tag
     break
 
@@ -28,7 +31,7 @@ if not last_updated_text:
     print("Could not find 'Last updated' on the page. Exiting!")
     exit()
 
-match = re.search(r"Last updated:\s*([0-9\- :]+) UTC", last_updated_text)
+match = re.search(r"last\s*updated:?\s*([0-9\- :]+) UTC", last_updated_text, re.I)
 if not match:
     print("Couldn't extract the last updated datetime. Exiting!")
     exit()
@@ -36,6 +39,7 @@ if not match:
 last_updated_dt_str = match.group(1)
 last_updated_dt = datetime.strptime(last_updated_dt_str, '%Y-%m-%d %H:%M:%S')
 print(f"Site last updated at: {last_updated_dt} UTC")
+
 
 # Step 3: Read/check last_updated.txt (inside CSV_FOLDER)
 last_updated_file = os.path.join(CSV_FOLDER, 'last_updated.txt')
