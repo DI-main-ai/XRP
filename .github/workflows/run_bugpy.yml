@@ -1,0 +1,20 @@
+name: Run bug.py
+
+on:
+  workflow_dispatch:  # Allows you to manually trigger this workflow
+
+jobs:
+  run-bug:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.x
+
+      - name: Run bug.py
+        run: python bug.py
