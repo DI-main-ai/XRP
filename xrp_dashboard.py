@@ -138,9 +138,7 @@ with tab2:
     st.header("Current XRP Ledger Statistics")
 
     ACCOUNTS_CSV = "current_stats_accounts_history.csv"
-    PERCENT_CSV = "current_stats_percent_history.csv"
-
-    # ---- Utility functions ----
+    PERCENT_CSV  = "current_stats_percent_history.csv"
 
     def format_int(val):
         try:
@@ -169,15 +167,17 @@ with tab2:
             return float('nan')
 
     def normalize_balance_range(x):
+        """Extract numeric start from balance range string for matching."""
         if pd.isna(x): return None
         if isinstance(x, str):
-            x = x.replace(',', '').split('-')[0].strip()
+            x = x.replace(',','').split('-')[0].strip()
         try:
             return float(x)
         except:
             return x
 
     def normalize_threshold(val):
+        """Convert thresholds like '0.01 %' to float 0.01 for matching/merging."""
         try:
             if isinstance(val, str):
                 return float(val.replace('%','').replace(',','').strip())
@@ -185,20 +185,27 @@ with tab2:
         except Exception:
             return None
 
-    def highlight_delta(val):
-        # Helper to color deltas: green for positive, red for negative, white for zero
-        if pd.isnull(val) or val == "":
-            return ""
-        try:
-            num = float(str(val).replace(",", ""))
-        except:
-            return ""
-        if num > 0:
-            return f'<span style="color:#2dd36f;font-weight:700;">{val}</span>'
-        elif num < 0:
-            return f'<span style="color:#ff5c5c;font-weight:700;">{val}</span>'
-        else:
-            return f'<span style="color:#f3f4f6;">{val}</span>'
+    # --- Styler function for delta columns
+    def style_deltas(df, delta_cols_int=[], delta_cols_float=[]):
+        def color(val):
+            try:
+                f = float(val)
+                if f > 0:
+                    return "color: #21c442;"  # Green
+                elif f < 0:
+                    return "color: #ea4646;"  # Red
+                else:
+                    return "color: white;"    # White (default)
+            except:
+                return ""
+        styled = df.style
+        for col in delta_cols_int:
+            styled = styled.format({col: "{:+,.0f}"})
+            styled = styled.applymap(color, subset=[col])
+        for col in delta_cols_float:
+            styled = styled.format({col: "{:+,.1f}"})
+            styled = styled.applymap(color, subset=[col])
+        return styled
 
     def calc_and_display_delta_table(
         df, id_col, delta_cols, table_name, date_col="date", normalize_key_func=None
@@ -225,7 +232,6 @@ with tab2:
         today_df = today_df[keep_cols].reset_index(drop=True)
         yest_df = yest_df[keep_cols].reset_index(drop=True)
 
-        # Pretty column names (optionally adapt as needed)
         pretty_map = {
             "Balance Range (XRP)": "Balance Range (XRP)",
             "Sum in Range (XRP)": "Sum in Range (XRP)",
@@ -238,7 +244,6 @@ with tab2:
         yest_df.columns = [c if c not in pretty_map else pretty_map[c] for c in yest_df.columns]
         id_col_pretty = id_col if id_col not in pretty_map else pretty_map[id_col]
 
-        # --- Use normalized key column for merge if needed ---
         if normalize_key_func is not None:
             today_df["MergeKey"] = today_df[id_col_pretty].apply(normalize_key_func)
             yest_df["MergeKey"] = yest_df[id_col_pretty].apply(normalize_key_func)
@@ -247,7 +252,6 @@ with tab2:
             merge_id = id_col_pretty
 
         # --- Merge for delta ---
-        styler = None
         if show_delta and not yest_df.empty:
             merged = today_df.merge(
                 yest_df,
@@ -255,92 +259,34 @@ with tab2:
                 how="left",
                 suffixes=('', '_prev')
             )
-            # Add delta columns for each requested delta_col
             for col in delta_cols:
                 col_pretty = pretty_map.get(col, col)
                 col_prev = f"{col_pretty}_prev"
                 if col_pretty in merged.columns and col_prev in merged.columns:
-                    # Accounts/Threshold (first delta col) as int, others as float
-                    if "Account" in col_pretty:
-                        delta_val = (
-                            merged[col_pretty].apply(clean_numeric).astype("Int64") -
-                            merged[col_prev].apply(clean_numeric).astype("Int64")
-                        )
-                        merged[f"{col_pretty} Δ"] = delta_val.map(lambda v: f"{v:+d}" if pd.notnull(v) else "")
-                    else:
-                        delta_val = (
-                            merged[col_pretty].apply(clean_numeric) -
-                            merged[col_prev].apply(clean_numeric)
-                        )
-                        merged[f"{col_pretty} Δ"] = delta_val.map(lambda v: f"{v:+,.1f}" if pd.notnull(v) else "")
+                    merged[f"{col_pretty} Δ"] = (
+                        merged[col_pretty].apply(clean_numeric) -
+                        merged[col_prev].apply(clean_numeric)
+                    )
                 else:
                     merged[f"{col_pretty} Δ"] = ""
-
-            # Remove prev and merge key columns
             keep = [c for c in merged.columns if not c.endswith("_prev") and c != "MergeKey"]
             today_df = merged[keep]
 
-            # Apply color formatting to delta columns
-            def color_delta(val, kind="float"):
-                if pd.isnull(val) or val == "":
-                    return ""
-                if kind == "int":
-                    try: v = int(val.replace("+","").replace(",",""))
-                    except: return val
-                else:
-                    try: v = float(val.replace("+","").replace(",",""))
-                    except: return val
-                if v > 0:
-                    return f'<span style="color:#2dd36f;font-weight:700;">{val}</span>'
-                elif v < 0:
-                    return f'<span style="color:#ff5c5c;font-weight:700;">{val}</span>'
-                else:
-                    return f'<span style="color:#f3f4f6;">{val}</span>'
-
-            # Build dict for st.dataframe column config
-            col_cfg = {}
-            for c in today_df.columns:
-                if "Δ" in c and "Account" in c:
-                    col_cfg[c] = st.column_config.TextColumn(
-                        c, 
-                        help="Change since previous day",
-                        width="small",
-                        html=True
-                    )
-                elif "Δ" in c:
-                    col_cfg[c] = st.column_config.TextColumn(
-                        c,
-                        help="Change since previous day",
-                        width="small",
-                        html=True
-                    )
-            # Actually apply color html to delta columns
-            for c in today_df.columns:
-                if "Δ" in c:
-                    # Decide int/float
-                    kind = "int" if "Account" in c else "float"
-                    today_df[c] = today_df[c].apply(lambda v: color_delta(v, kind=kind))
-
-        # Formatting for display for all
+        # Formatting: int columns
         for c in today_df.columns:
-            if "Δ" not in c:  # Only non-delta columns
-                if "Accounts" in c or "Sum" in c or "XRP" in c:
-                    today_df[c] = today_df[c].apply(format_int)
+            if "Accounts" in c:
+                today_df[c] = today_df[c].apply(format_int)
+            elif "Sum in Range" in c or "XRP ≥ Threshold" in c or "XRP" in c:
+                today_df[c] = today_df[c].apply(format_int)
 
-        # Remove MergeKey if present (just in case)
-        if "MergeKey" in today_df.columns:
-            today_df = today_df.drop(columns=["MergeKey"])
+        # Display with pandas Styler (color deltas)
+        delta_cols_int = [col for col in today_df.columns if "Accounts Δ" in col or "Accounts ≥ Threshold Δ" in col]
+        delta_cols_float = [col for col in today_df.columns if "Sum in Range (XRP) Δ" in col or "XRP ≥ Threshold Δ" in col]
+        styler = style_deltas(today_df.drop(columns=[date_col]), delta_cols_int, delta_cols_float)
 
         st.subheader(table_name)
         st.markdown(f"<span style='color:#aaa;'>Date: {sel_date}</span>", unsafe_allow_html=True)
-        # st.dataframe auto-renders HTML if column_config TextColumn(html=True) is set
-        st.dataframe(
-            today_df.drop(columns=[date_col]),
-            use_container_width=True,
-            hide_index=True,
-            column_config=col_cfg if show_delta and not yest_df.empty else None,
-            height=530
-        )
+        st.dataframe(styler, use_container_width=True, hide_index=True)
         st.download_button(
             label=f"Download {table_name}",
             data=today_df.to_csv(index=False).encode(),
@@ -373,6 +319,7 @@ with tab2:
         )
     else:
         st.info("current_stats_percent_history.csv not found.")
+
 
 
 with tab1:
