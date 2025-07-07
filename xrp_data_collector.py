@@ -7,6 +7,9 @@ from io import StringIO
 import os
 from datetime import datetime
 
+CSV_FOLDER = "csv"
+os.makedirs(CSV_FOLDER, exist_ok=True)  # Ensure folder exists
+
 url = 'https://rich-list.info/'
 headers = {"User-Agent": "Mozilla/5.0"}
 today = datetime.utcnow().date().isoformat()
@@ -35,7 +38,7 @@ df1.columns = ["Accounts", "Balance Range (XRP)", "Sum in Range (XRP)"]
 df1 = df1[df1["Accounts"].astype(str).str.strip().str.match(r"^\d")].reset_index(drop=True)
 df1["date"] = today
 
-hist1 = "current_stats_accounts_history.csv"
+hist1 = os.path.join(CSV_FOLDER, "current_stats_accounts_history.csv")
 if os.path.exists(hist1):
     prev = pd.read_csv(hist1)
     prev = prev[prev["date"] != today]
@@ -50,7 +53,7 @@ df2.columns = ["Threshold (%)", "Accounts ≥ Threshold", "XRP ≥ Threshold"]
 df2 = df2[df2["Threshold (%)"].astype(str).str.strip().str.match(r"^\d")].reset_index(drop=True)
 df2["date"] = today
 
-hist2 = "current_stats_percent_history.csv"
+hist2 = os.path.join(CSV_FOLDER, "current_stats_percent_history.csv")
 if os.path.exists(hist2):
     prev = pd.read_csv(hist2)
     prev = prev[prev["date"] != today]
@@ -122,7 +125,7 @@ for i, (title, data_raw) in enumerate(matches):
 
         safe_title = title.replace('/', '-').replace(' ', '_')
         safe_label = label.replace('/', '-').replace(' ', '_')
-        csv_name = f"{safe_title}__{safe_label}.csv"
+        csv_name = os.path.join(CSV_FOLDER, f"{safe_title}__{safe_label}.csv")
         df.to_csv(csv_name, index=False)
         print(f"    Saved data series '{label}' as: {csv_name}")
 
