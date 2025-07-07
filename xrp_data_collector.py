@@ -22,16 +22,17 @@ print("Downloaded main page, length:", len(r.text))
 soup = BeautifulSoup(r.text, 'html.parser')
 
 # Step 2: Extract "Last updated" timestamp (case-insensitive, colon optional)
-last_updated_text = None
-for tag in soup.find_all(string=re.compile(r"last\s*updated", re.I)):
-    last_updated_text = tag
+ledger_date_text = None
+for tag in soup.find_all(string=re.compile("Ledger date:")):
+    ledger_date_text = tag
     break
 
-if not last_updated_text:
-    print("Could not find 'Last updated' on the page. Exiting!")
+if not ledger_date_text:
+    print("Could not find 'Ledger date' on the page. Exiting!")
     exit()
 
-match = re.search(r"last\s*updated:?\s*([0-9\- :]+) UTC", last_updated_text, re.I)
+
+match = re.search(r"Ledger date:\s*([0-9\- :]+) UTC", ledger_date_text)
 if not match:
     print("Couldn't extract the last updated datetime. Exiting!")
     exit()
