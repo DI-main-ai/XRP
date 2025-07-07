@@ -70,6 +70,23 @@ def normalize_balance_range(x):
     except Exception:
         return x
 
+def clean_numeric(val):
+    """Convert to float after removing commas, % signs, 'XRP', spaces."""
+    if pd.isnull(val):
+        return float('nan')
+    if isinstance(val, str):
+        val = (
+            val.replace(',', '')
+               .replace('XRP', '')
+               .replace('%', '')
+               .strip()
+        )
+    try:
+        return float(val)
+    except Exception:
+        return float('nan')
+
+
 def normalize_threshold(val):
     try:
         if isinstance(val, str):
