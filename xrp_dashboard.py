@@ -140,6 +140,7 @@ with tab2:
     ACCOUNTS_CSV = "current_stats_accounts_history.csv"
     PERCENT_CSV  = "current_stats_percent_history.csv"
 
+    # --- Utility functions ---
     def format_int(val):
         try:
             v = float(val)
@@ -167,7 +168,6 @@ with tab2:
             return float('nan')
 
     def normalize_balance_range(x):
-        """Extract numeric start from balance range string for matching."""
         if pd.isna(x): return None
         if isinstance(x, str):
             x = x.replace(',','').split('-')[0].strip()
@@ -177,7 +177,6 @@ with tab2:
             return x
 
     def normalize_threshold(val):
-        """Convert thresholds like '0.01 %' to float 0.01 for matching/merging."""
         try:
             if isinstance(val, str):
                 return float(val.replace('%','').replace(',','').strip())
@@ -185,31 +184,41 @@ with tab2:
         except Exception:
             return None
 
-    # --- Styler function for delta columns
-    def style_deltas(df, delta_cols_int=[], delta_cols_float=[]):
-        def color(val):
-            try:
-                f = float(val)
-                if f > 0:
-                    return "color: #21c442;"  # Green
-                elif f < 0:
-                    return "color: #ea4646;"  # Red
-                else:
-                    return "color: white;"    # White (default)
-            except:
+    def color_delta(val):
+        """Return color for Streamlit column_config: green/red/white"""
+        try:
+            if isinstance(val, str):
+                # Remove symbols to get a float for comparison
+                v = float(val.replace("+", "").replace(",", "").replace("–", "-"))
+            else:
+                v = float(val)
+            if v > 0:
+                return "green"
+            elif v < 0:
+                return "red"
+            else:
+                return "white"
+        except Exception:
+            return "white"
+
+    def format_delta(val, int_only=False):
+        """Format delta column as '+/-' with color for display."""
+        try:
+            if pd.isnull(val) or val == "":
                 return ""
-        styled = df.style
-        for col in delta_cols_int:
-            styled = styled.format({col: "{:+,.0f}"})
-            styled = styled.applymap(color, subset=[col])
-        for col in delta_cols_float:
-            styled = styled.format({col: "{:+,.1f}"})
-            styled = styled.applymap(color, subset=[col])
-        return styled
+            v = float(val)
+            if int_only:
+                return f"{v:+.0f}"
+            else:
+                return f"{v:+,.1f}"
+        except Exception:
+            return ""
 
     def calc_and_display_delta_table(
-        df, id_col, delta_cols, table_name, date_col="date", normalize_key_func=None
+        df, id_col, delta_cols, table_name, date_col="date", normalize_key_func=None, delta_int_cols=None
     ):
+        if delta_int_cols is None:
+            delta_int_cols = []
         df[date_col] = pd.to_datetime(df[date_col], errors='coerce', infer_datetime_format=True)
         if df[date_col].isnull().any():
             st.warning(f"Some rows in {table_name} have invalid date format.")
@@ -224,7 +233,6 @@ with tab2:
 
         today_df = df[df[date_col].dt.date == sel_date].copy()
         yest_df = df[df[date_col].dt.date == (sel_date - pd.Timedelta(days=1))].copy()
-
         today_df = today_df.drop_duplicates(subset=[id_col])
         yest_df = yest_df.drop_duplicates(subset=[id_col])
 
@@ -251,7 +259,6 @@ with tab2:
         else:
             merge_id = id_col_pretty
 
-        # --- Merge for delta ---
         if show_delta and not yest_df.empty:
             merged = today_df.merge(
                 yest_df,
@@ -263,33 +270,61 @@ with tab2:
                 col_pretty = pretty_map.get(col, col)
                 col_prev = f"{col_pretty}_prev"
                 if col_pretty in merged.columns and col_prev in merged.columns:
-                    merged[f"{col_pretty} Δ"] = (
-                        merged[col_pretty].apply(clean_numeric) -
-                        merged[col_prev].apply(clean_numeric)
-                    )
+                    # Int delta for "Accounts" cols, float otherwise
+                    if col_pretty in delta_int_cols:
+                        merged[f"{col_pretty} Δ"] = (
+                            merged[col_pretty].apply(clean_numeric).astype('Int64') -
+                            merged[col_prev].apply(clean_numeric).astype('Int64')
+                        )
+                    else:
+                        merged[f"{col_pretty} Δ"] = (
+                            merged[col_pretty].apply(clean_numeric) -
+                            merged[col_prev].apply(clean_numeric)
+                        )
                 else:
                     merged[f"{col_pretty} Δ"] = ""
             keep = [c for c in merged.columns if not c.endswith("_prev") and c != "MergeKey"]
             today_df = merged[keep]
 
-        # Formatting: int columns
-        for c in today_df.columns:
-            if "Accounts" in c:
-                today_df[c] = today_df[c].apply(format_int)
-            elif "Sum in Range" in c or "XRP ≥ Threshold" in c or "XRP" in c:
-                today_df[c] = today_df[c].apply(format_int)
+        # Formatting for display (all as string so Streamlit coloring works)
+        display_df = today_df.copy()
+        for c in display_df.columns:
+            if "Δ" in c:
+                int_only = any(keyword in c for keyword in delta_int_cols)
+                display_df[c] = display_df[c].apply(lambda v: format_delta(v, int_only=int_only))
+            elif "Accounts" in c or "Sum" in c or "XRP" in c:
+                display_df[c] = display_df[c].apply(format_int)
 
-        # Display with pandas Styler (color deltas)
-        delta_cols_int = [col for col in today_df.columns if "Accounts Δ" in col or "Accounts ≥ Threshold Δ" in col]
-        delta_cols_float = [col for col in today_df.columns if "Sum in Range (XRP) Δ" in col or "XRP ≥ Threshold Δ" in col]
-        styler = style_deltas(today_df.drop(columns=[date_col]), delta_cols_int, delta_cols_float)
+        # Build column config for Streamlit highlighting
+        col_cfg = {}
+        for c in display_df.columns:
+            if "Δ" in c:
+                col_cfg[c] = st.column_config.TextColumn(
+                    c,
+                    help="Change vs previous day",
+                    width="medium",
+                    html=True,
+                    # This lambda receives the value as rendered string
+                    # We can only style based on text (but it works for '+', '-')
+                    # Style green/red/white based on sign
+                    format_func=lambda x: (
+                        f"<span style='color:green'>{x}</span>" if x and str(x).startswith('+') and x != "+0" and x != "+0.0"
+                        else f"<span style='color:red'>{x}</span>" if x and str(x).startswith('-')
+                        else f"<span style='color:white'>{x}</span>" if x != "" else ""
+                    )
+                )
 
         st.subheader(table_name)
         st.markdown(f"<span style='color:#aaa;'>Date: {sel_date}</span>", unsafe_allow_html=True)
-        st.dataframe(styler, use_container_width=True, hide_index=True)
+        st.dataframe(
+            display_df.drop(columns=[date_col]),
+            use_container_width=True,
+            hide_index=True,
+            column_config=col_cfg
+        )
         st.download_button(
             label=f"Download {table_name}",
-            data=today_df.to_csv(index=False).encode(),
+            data=display_df.to_csv(index=False).encode(),
             file_name=f"{table_name.replace(' ', '_')}_{sel_date}.csv",
             mime='text/csv',
         )
@@ -302,7 +337,8 @@ with tab2:
             id_col="Balance Range (XRP)",
             delta_cols=["Accounts", "Sum in Range (XRP)"],
             table_name="Number Of Accounts And Sum Of Balance Range",
-            normalize_key_func=normalize_balance_range
+            normalize_key_func=normalize_balance_range,
+            delta_int_cols=["Accounts"]   # <-- This makes 'Accounts Δ' int only
         )
     else:
         st.info("current_stats_accounts_history.csv not found.")
@@ -315,10 +351,12 @@ with tab2:
             id_col="Threshold (%)",
             delta_cols=["Accounts ≥ Threshold", "XRP ≥ Threshold"],
             table_name="Percentage Of Accounts With Balances Greater Than Or Equal To",
-            normalize_key_func=normalize_threshold
+            normalize_key_func=normalize_threshold,
+            delta_int_cols=["Accounts ≥ Threshold"]   # <-- int delta for accounts threshold
         )
     else:
         st.info("current_stats_percent_history.csv not found.")
+
 
 
 
