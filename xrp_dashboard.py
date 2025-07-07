@@ -140,28 +140,19 @@ with tab2:
     ACCOUNTS_CSV = "current_stats_accounts_history.csv"
     PERCENT_CSV  = "current_stats_percent_history.csv"
 
-    # --- Utility functions ---
+    # --- Formatting helpers ---
     def format_int(val):
         try:
             v = float(val)
-            if v.is_integer():
-                return f"{int(v):,}"
-            else:
-                return f"{v:,.4f}".rstrip('0').rstrip('.')
+            return f"{int(v):,}" if v.is_integer() else f"{v:,.4f}".rstrip('0').rstrip('.')
         except Exception:
             return val
 
     def clean_numeric(val):
-        """Convert to float after removing commas, % signs, 'XRP', spaces."""
         if pd.isnull(val):
             return float('nan')
         if isinstance(val, str):
-            val = (
-                val.replace(',', '')
-                   .replace('XRP', '')
-                   .replace('%', '')
-                   .strip()
-            )
+            val = val.replace(',', '').replace('XRP', '').replace('%', '').strip()
         try:
             return float(val)
         except Exception:
@@ -184,41 +175,26 @@ with tab2:
         except Exception:
             return None
 
-    def color_delta(val):
-        """Return color for Streamlit column_config: green/red/white"""
+    def delta_color(val, int_mode=False):
+        # For HTML style rendering
         try:
-            if isinstance(val, str):
-                # Remove symbols to get a float for comparison
-                v = float(val.replace("+", "").replace(",", "").replace("–", "-"))
-            else:
-                v = float(val)
-            if v > 0:
-                return "green"
-            elif v < 0:
-                return "red"
-            else:
-                return "white"
+            fval = float(val)
         except Exception:
-            return "white"
+            return val
+        if pd.isnull(fval):
+            return val
+        if int_mode:
+            val_disp = f"{int(fval):+d}"
+        else:
+            val_disp = f"{fval:+,.0f}" if abs(fval) >= 1 else f"{fval:+,.4f}"
+        color = (
+            "green" if fval > 0 else
+            "red" if fval < 0 else
+            "white"
+        )
+        return f'<span style="color:{color}; font-weight:bold;">{val_disp}</span>'
 
-    def format_delta(val, int_only=False):
-        """Format delta column as '+/-' with color for display."""
-        try:
-            if pd.isnull(val) or val == "":
-                return ""
-            v = float(val)
-            if int_only:
-                return f"{v:+.0f}"
-            else:
-                return f"{v:+,.1f}"
-        except Exception:
-            return ""
-
-    def calc_and_display_delta_table(
-        df, id_col, delta_cols, table_name, date_col="date", normalize_key_func=None, delta_int_cols=None
-    ):
-        if delta_int_cols is None:
-            delta_int_cols = []
+    def display_delta_table(df, id_col, delta_cols, table_name, date_col="date", normalize_key_func=None, int_delta_cols=None):
         df[date_col] = pd.to_datetime(df[date_col], errors='coerce', infer_datetime_format=True)
         if df[date_col].isnull().any():
             st.warning(f"Some rows in {table_name} have invalid date format.")
@@ -233,6 +209,7 @@ with tab2:
 
         today_df = df[df[date_col].dt.date == sel_date].copy()
         yest_df = df[df[date_col].dt.date == (sel_date - pd.Timedelta(days=1))].copy()
+
         today_df = today_df.drop_duplicates(subset=[id_col])
         yest_df = yest_df.drop_duplicates(subset=[id_col])
 
@@ -252,6 +229,7 @@ with tab2:
         yest_df.columns = [c if c not in pretty_map else pretty_map[c] for c in yest_df.columns]
         id_col_pretty = id_col if id_col not in pretty_map else pretty_map[id_col]
 
+        # --- Merge for delta ---
         if normalize_key_func is not None:
             today_df["MergeKey"] = today_df[id_col_pretty].apply(normalize_key_func)
             yest_df["MergeKey"] = yest_df[id_col_pretty].apply(normalize_key_func)
@@ -266,96 +244,76 @@ with tab2:
                 how="left",
                 suffixes=('', '_prev')
             )
+            # Add delta columns
             for col in delta_cols:
                 col_pretty = pretty_map.get(col, col)
                 col_prev = f"{col_pretty}_prev"
                 if col_pretty in merged.columns and col_prev in merged.columns:
-                    # Int delta for "Accounts" cols, float otherwise
-                    if col_pretty in delta_int_cols:
-                        merged[f"{col_pretty} Δ"] = (
-                            merged[col_pretty].apply(clean_numeric).astype('Int64') -
-                            merged[col_prev].apply(clean_numeric).astype('Int64')
-                        )
-                    else:
-                        merged[f"{col_pretty} Δ"] = (
-                            merged[col_pretty].apply(clean_numeric) -
-                            merged[col_prev].apply(clean_numeric)
-                        )
-                else:
-                    merged[f"{col_pretty} Δ"] = ""
-            keep = [c for c in merged.columns if not c.endswith("_prev") and c != "MergeKey"]
-            today_df = merged[keep]
-
-        # Formatting for display (all as string so Streamlit coloring works)
-        display_df = today_df.copy()
-        for c in display_df.columns:
-            if "Δ" in c:
-                int_only = any(keyword in c for keyword in delta_int_cols)
-                display_df[c] = display_df[c].apply(lambda v: format_delta(v, int_only=int_only))
-            elif "Accounts" in c or "Sum" in c or "XRP" in c:
-                display_df[c] = display_df[c].apply(format_int)
-
-        # Build column config for Streamlit highlighting
-        col_cfg = {}
-        for c in display_df.columns:
-            if "Δ" in c:
-                col_cfg[c] = st.column_config.TextColumn(
-                    c,
-                    help="Change vs previous day",
-                    width="medium",
-                    html=True,
-                    # This lambda receives the value as rendered string
-                    # We can only style based on text (but it works for '+', '-')
-                    # Style green/red/white based on sign
-                    format_func=lambda x: (
-                        f"<span style='color:green'>{x}</span>" if x and str(x).startswith('+') and x != "+0" and x != "+0.0"
-                        else f"<span style='color:red'>{x}</span>" if x and str(x).startswith('-')
-                        else f"<span style='color:white'>{x}</span>" if x != "" else ""
+                    merged[f"{col_pretty} Δ"] = (
+                        merged[col_pretty].apply(clean_numeric) -
+                        merged[col_prev].apply(clean_numeric)
                     )
-                )
+                else:
+                    merged[f"{col_pretty} Δ"] = np.nan
+            today_df = merged[[c for c in merged.columns if not c.endswith("_prev") and c != "MergeKey"]]
 
+        # Format columns
+        for c in today_df.columns:
+            if c == id_col_pretty:
+                continue
+            if "Δ" in c:
+                # Int mode if specified, otherwise float mode
+                if int_delta_cols and any(x in c for x in int_delta_cols):
+                    today_df[c] = today_df[c].apply(lambda v: delta_color(v, int_mode=True))
+                else:
+                    today_df[c] = today_df[c].apply(lambda v: delta_color(v, int_mode=False))
+            elif "Accounts" in c or "Sum" in c or "XRP" in c:
+                today_df[c] = today_df[c].apply(format_int)
+        # Table display (with HTML so colors work)
         st.subheader(table_name)
         st.markdown(f"<span style='color:#aaa;'>Date: {sel_date}</span>", unsafe_allow_html=True)
+        st.write("")  # space
         st.dataframe(
-            display_df.drop(columns=[date_col]),
+            today_df.drop(columns=[date_col]),
             use_container_width=True,
             hide_index=True,
-            column_config=col_cfg
+            column_config={c: st.column_config.TextColumn(c, html=True) for c in today_df.columns}
         )
         st.download_button(
             label=f"Download {table_name}",
-            data=display_df.to_csv(index=False).encode(),
+            data=today_df.to_csv(index=False).encode(),
             file_name=f"{table_name.replace(' ', '_')}_{sel_date}.csv",
             mime='text/csv',
         )
 
-    # Table 1: Number Of Accounts And Sum Of Balance Range
+    # ---- Table 1 ----
     if os.path.exists(ACCOUNTS_CSV):
         df = pd.read_csv(ACCOUNTS_CSV)
-        calc_and_display_delta_table(
+        display_delta_table(
             df,
             id_col="Balance Range (XRP)",
             delta_cols=["Accounts", "Sum in Range (XRP)"],
             table_name="Number Of Accounts And Sum Of Balance Range",
             normalize_key_func=normalize_balance_range,
-            delta_int_cols=["Accounts"]   # <-- This makes 'Accounts Δ' int only
+            int_delta_cols=["Accounts Δ"]
         )
     else:
         st.info("current_stats_accounts_history.csv not found.")
 
-    # Table 2: Percentage Of Accounts With Balances Greater Than Or Equal To
+    # ---- Table 2 ----
     if os.path.exists(PERCENT_CSV):
         df = pd.read_csv(PERCENT_CSV)
-        calc_and_display_delta_table(
+        display_delta_table(
             df,
             id_col="Threshold (%)",
             delta_cols=["Accounts ≥ Threshold", "XRP ≥ Threshold"],
             table_name="Percentage Of Accounts With Balances Greater Than Or Equal To",
             normalize_key_func=normalize_threshold,
-            delta_int_cols=["Accounts ≥ Threshold"]   # <-- int delta for accounts threshold
+            int_delta_cols=["Accounts ≥ Threshold Δ"]
         )
     else:
         st.info("current_stats_percent_history.csv not found.")
+
 
 
 
