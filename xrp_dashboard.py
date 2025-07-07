@@ -140,10 +140,16 @@ with tab2:
     ACCOUNTS_CSV = "current_stats_accounts_history.csv"
     PERCENT_CSV  = "current_stats_percent_history.csv"
 
+    import pandas as pd
+
+    # --- Utility functions ---
     def format_int(val):
         try:
             v = float(val)
-            return f"{int(v):,}"
+            if v.is_integer():
+                return f"{int(v):,}"
+            else:
+                return f"{v:,.4f}".rstrip('0').rstrip('.')
         except Exception:
             return val
 
@@ -180,8 +186,8 @@ with tab2:
         except Exception:
             return None
 
-    # --- Display and Style Table Helper ---
-    def display_delta_table(
+    # Main function
+    def calc_and_display_delta_table(
         df, id_col, delta_cols, table_name, date_col="date", normalize_key_func=None, int_delta_cols=None
     ):
         df[date_col] = pd.to_datetime(df[date_col], errors='coerce', infer_datetime_format=True)
@@ -198,6 +204,7 @@ with tab2:
 
         today_df = df[df[date_col].dt.date == sel_date].copy()
         yest_df = df[df[date_col].dt.date == (sel_date - pd.Timedelta(days=1))].copy()
+
         today_df = today_df.drop_duplicates(subset=[id_col])
         yest_df = yest_df.drop_duplicates(subset=[id_col])
 
@@ -217,7 +224,7 @@ with tab2:
         yest_df.columns = [c if c not in pretty_map else pretty_map[c] for c in yest_df.columns]
         id_col_pretty = id_col if id_col not in pretty_map else pretty_map[id_col]
 
-        # --- Merge for delta ---
+        # Merge for delta
         if normalize_key_func is not None:
             today_df["MergeKey"] = today_df[id_col_pretty].apply(normalize_key_func)
             yest_df["MergeKey"] = yest_df[id_col_pretty].apply(normalize_key_func)
@@ -235,61 +242,57 @@ with tab2:
             for col in delta_cols:
                 col_pretty = pretty_map.get(col, col)
                 col_prev = f"{col_pretty}_prev"
-                # Compute delta safely with conversion
                 if col_pretty in merged.columns and col_prev in merged.columns:
-                    diff = merged[col_pretty].apply(clean_numeric) - merged[col_prev].apply(clean_numeric)
-                    if int_delta_cols and col_pretty in int_delta_cols:
-                        merged[f"{col_pretty} Δ"] = diff.astype("Int64")
-                    else:
-                        merged[f"{col_pretty} Δ"] = diff
+                    merged[f"{col_pretty} Δ"] = (
+                        merged[col_pretty].apply(clean_numeric) -
+                        merged[col_prev].apply(clean_numeric)
+                    )
                 else:
-                    merged[f"{col_pretty} Δ"] = pd.NA
-            # Remove prev/merge columns
+                    merged[f"{col_pretty} Δ"] = ""
             keep = [c for c in merged.columns if not c.endswith("_prev") and c != "MergeKey"]
             today_df = merged[keep]
 
-        # Format numbers (no color here)
-        for c in today_df.columns:
-            if "Accounts" in c and "Δ" not in c:
-                today_df[c] = today_df[c].apply(format_int)
-            elif "Sum" in c or "XRP" in c:
-                today_df[c] = today_df[c].apply(format_int)
+        # Formatting: integers for int_delta_cols, otherwise floats
+        if show_delta:
+            for c in today_df.columns:
+                # Int format for specified columns
+                if int_delta_cols and c in int_delta_cols:
+                    today_df[c] = today_df[c].apply(
+                        lambda v: f"{int(v):+d}" if pd.notnull(v) and v != "" and str(v).replace('.','',1).replace('-','').isdigit() else ""
+                    )
+                # Float with sign for Δ columns
+                elif "Δ" in c:
+                    today_df[c] = today_df[c].apply(
+                        lambda v: f"{v:+,.4f}".rstrip('0').rstrip('.') if pd.notnull(v) and v != "" and isinstance(v, (int, float)) else ""
+                    )
+                elif "Accounts" in c or "Sum" in c or "XRP" in c:
+                    today_df[c] = today_df[c].apply(format_int)
 
-        # --- Pandas Styler for coloring deltas ---
-        def highlight_delta(val):
+        # Remove MergeKey if exists
+        if "MergeKey" in today_df.columns:
+            today_df = today_df.drop(columns=["MergeKey"])
+        
+        # Colorize Δ columns with pandas Styler
+        def color_delta(val):
             try:
-                if pd.isna(val): return ""
-                v = float(val)
-                if v > 0:   color = "#22bb33"  # green
-                elif v < 0: color = "#d62222"  # red
-                else:       color = "#cccccc"  # gray for zero
-                return f"color: {color}; font-weight: bold;"
-            except Exception:
-                return ""
+                v = float(val.replace('+','').replace(',','')) if isinstance(val, str) else float(val)
+                if v > 0:
+                    return 'color: #11e811; font-weight:bold;'  # Green
+                elif v < 0:
+                    return 'color: #ff3b3b; font-weight:bold;'  # Red
+            except:
+                pass
+            return ''
 
-        # List of delta columns to color
-        delta_cols_color = [c for c in today_df.columns if "Δ" in c]
+        delta_cols_to_color = [c for c in today_df.columns if "Δ" in c]
 
-        # Format deltas
-        for c in delta_cols_color:
-            if int_delta_cols and any(x in c for x in int_delta_cols):
-                today_df[c] = today_df[c].apply(lambda v: f"{int(v):+d}" if pd.notnull(v) else "")
-            else:
-                today_df[c] = today_df[c].apply(lambda v: f"{v:+,.1f}" if pd.notnull(v) else "")
+        styler = today_df.style
+        if delta_cols_to_color:
+            styler = styler.applymap(color_delta, subset=delta_cols_to_color)
 
         st.subheader(table_name)
         st.markdown(f"<span style='color:#aaa;'>Date: {sel_date}</span>", unsafe_allow_html=True)
-        if show_delta:
-            # Styler only for delta columns
-            styler = today_df.drop(columns=[date_col]).style
-            styler = styler.applymap(
-                highlight_delta,
-                subset=delta_cols_color
-            )
-            st.dataframe(styler, use_container_width=True, hide_index=True)
-        else:
-            st.dataframe(today_df.drop(columns=[date_col]), use_container_width=True, hide_index=True)
-
+        st.dataframe(today_df.drop(columns=[date_col]), use_container_width=True, hide_index=True, height=540, styler=styler)
         st.download_button(
             label=f"Download {table_name}",
             data=today_df.to_csv(index=False).encode(),
@@ -297,33 +300,34 @@ with tab2:
             mime='text/csv',
         )
 
-    # --- Table 1: Number Of Accounts And Sum Of Balance Range
+    # Table 1: Number Of Accounts And Sum Of Balance Range
     if os.path.exists(ACCOUNTS_CSV):
         df = pd.read_csv(ACCOUNTS_CSV)
-        display_delta_table(
+        calc_and_display_delta_table(
             df,
             id_col="Balance Range (XRP)",
             delta_cols=["Accounts", "Sum in Range (XRP)"],
             table_name="Number Of Accounts And Sum Of Balance Range",
             normalize_key_func=normalize_balance_range,
-            int_delta_cols=["Accounts"]   # <-- Int for "Accounts Δ"
+            int_delta_cols=["Accounts Δ"]
         )
     else:
         st.info("current_stats_accounts_history.csv not found.")
 
-    # --- Table 2: Percentage Of Accounts With Balances Greater Than Or Equal To
+    # Table 2: Percentage Of Accounts With Balances Greater Than Or Equal To
     if os.path.exists(PERCENT_CSV):
         df = pd.read_csv(PERCENT_CSV)
-        display_delta_table(
+        calc_and_display_delta_table(
             df,
             id_col="Threshold (%)",
             delta_cols=["Accounts ≥ Threshold", "XRP ≥ Threshold"],
             table_name="Percentage Of Accounts With Balances Greater Than Or Equal To",
             normalize_key_func=normalize_threshold,
-            int_delta_cols=["Accounts ≥ Threshold"]  # <-- Int for "Accounts ≥ Threshold Δ"
+            int_delta_cols=["Accounts ≥ Threshold Δ"]
         )
     else:
         st.info("current_stats_percent_history.csv not found.")
+
 
 
 
