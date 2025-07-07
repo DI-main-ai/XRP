@@ -8,19 +8,17 @@ import os
 from datetime import datetime
 
 CSV_FOLDER = "csv"
-os.makedirs(CSV_FOLDER, exist_ok=True)  # Ensure folder exists
+os.makedirs(CSV_FOLDER, exist_ok=True)
 
 url = 'https://rich-list.info/'
 headers = {"User-Agent": "Mozilla/5.0"}
-today = datetime.utcnow().date().isoformat()
 
-# ---- 1. Scrape Current Statistics tables and append to history ----
-
+# Step 1: Fetch the page and parse with BeautifulSoup
 r = requests.get(url, headers=headers, timeout=15)
 r.raise_for_status()
 soup = BeautifulSoup(r.text, 'html.parser')
 
-# --- 1. Find "Last updated" datetime from the page ---
+# Step 2: Extract "Last updated" timestamp
 last_updated_text = None
 for tag in soup.find_all(string=re.compile("Last updated:")):
     last_updated_text = tag
@@ -30,7 +28,6 @@ if not last_updated_text:
     print("Could not find 'Last updated' on the page. Exiting!")
     exit()
 
-# Extract the timestamp (format: 2025-07-06 03:34:10 UTC)
 match = re.search(r"Last updated:\s*([0-9\- :]+) UTC", last_updated_text)
 if not match:
     print("Couldn't extract the last updated datetime. Exiting!")
@@ -40,29 +37,29 @@ last_updated_dt_str = match.group(1)
 last_updated_dt = datetime.strptime(last_updated_dt_str, '%Y-%m-%d %H:%M:%S')
 print(f"Site last updated at: {last_updated_dt} UTC")
 
-# --- 2. Compare with your local last_updated.txt (or create it if missing) ---
-last_updated_file = os.path.join('csv', 'last_updated.txt')
+# Step 3: Read/check last_updated.txt (inside CSV_FOLDER)
+last_updated_file = os.path.join(CSV_FOLDER, 'last_updated.txt')
+should_update = True
 
 if os.path.exists(last_updated_file):
     with open(last_updated_file, 'r') as f:
         prev_dt_str = f.read().strip()
-        if prev_dt_str:
-            prev_dt = datetime.strptime(prev_dt_str, '%Y-%m-%d %H:%M:%S')
-            if last_updated_dt <= prev_dt:
-                print(f"Site last updated ({last_updated_dt}) is NOT newer than our last update ({prev_dt}). Skipping.")
-                exit()
-else:
-    # If file doesn't exist, create the csv folder if needed
-    os.makedirs('csv', exist_ok=True)
+    if prev_dt_str:
+        prev_dt = datetime.strptime(prev_dt_str, '%Y-%m-%d %H:%M:%S')
+        if last_updated_dt <= prev_dt:
+            print(f"Site last updated ({last_updated_dt}) is NOT newer than last pull ({prev_dt}). Skipping CSV update.")
+            should_update = False
 
-# --- If we reach here, data is NEW and we continue ---
-print("New data detected. Proceeding with update.")
+if not should_update:
+    exit(0)
 
-# After a successful update, save the new last_updated_dt
+# Step 4: Write new last_updated.txt now, so any script failure doesn't dupe updates
 with open(last_updated_file, 'w') as f:
     f.write(last_updated_dt.strftime('%Y-%m-%d %H:%M:%S'))
 
+print("New data detected. Proceeding with update.")
 
+# Step 5: Scrape Current Statistics tables and append to history
 currentstats_div = soup.find('div', id=lambda x: x and x.lower() == 'currentstats')
 if not currentstats_div:
     print("Couldn't find the 'Currentstats' div!")
@@ -73,9 +70,10 @@ if not tables or len(tables) < 2:
     print("No tables found inside 'Currentstats' div.")
     exit()
 
+today = last_updated_dt.date().isoformat()
+
 # Table 1: Number of Accounts and Sum of Balance Range
 df1 = pd.read_html(StringIO(str(tables[0])))[0]
-
 df1 = df1.iloc[:, :3]
 df1.columns = ["Accounts", "Balance Range (XRP)", "Sum in Range (XRP)"]
 df1 = df1[df1["Accounts"].astype(str).str.strip().str.match(r"^\d")].reset_index(drop=True)
@@ -104,16 +102,13 @@ if os.path.exists(hist2):
 df2.to_csv(hist2, index=False)
 print(f"Updated {hist2} ({len(df2)} rows)")
 
-# ---- 2. Scrape all CanvasJS chart data and save latest-per-day for Series1 ----
-
-# Download HTML again for fresh script tag scan
+# Step 6: Scrape CanvasJS chart data and save latest-per-day for Series1
 html = r.text
 pattern = r'title:\s*\{\s*text:\s*"([^"]+)"\s*\}.*?data\s*:\s*(\[[\s\S]*?\])\s*\}\s*\);'
 matches = re.findall(pattern, html, re.DOTALL)
 print(f"\nFound {len(matches)} chart objects on the page.")
 
 def extract_js_object_array(js_array_str):
-    # Robust parse of [{...}, {...}]
     items = []
     bracket_level = 0
     curr = ''
@@ -143,7 +138,6 @@ for i, (title, data_raw) in enumerate(matches):
         label_match = re.search(r'label\s*:\s*"([^"]+)"', obj)
         label = label_match.group(1) if label_match else f"Series{j+1}"
 
-        # **This is the FIXED regex line!**
         dp_match = re.search(r'dataPoints\s*:\s*(\[[^\]]+\])', obj, re.DOTALL)
         if not dp_match:
             print(f"  Skipping series {j+1} ({label}): no dataPoints found.")
