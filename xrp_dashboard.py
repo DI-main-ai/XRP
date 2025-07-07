@@ -168,7 +168,6 @@ with tab2:
             return float('nan')
 
     def normalize_balance_range(x):
-        """Extract numeric start from balance range string for matching."""
         if pd.isna(x): return None
         if isinstance(x, str):
             x = x.replace(',','').split('-')[0].strip()
@@ -178,7 +177,6 @@ with tab2:
             return x
 
     def normalize_threshold(val):
-        """Convert thresholds like '0.01 %' to float 0.01 for matching/merging."""
         try:
             if isinstance(val, str):
                 return float(val.replace('%','').replace(',','').strip())
@@ -186,8 +184,26 @@ with tab2:
         except Exception:
             return None
 
+    def color_delta(val, int_display=False):
+        try:
+            valf = float(val)
+        except Exception:
+            return val
+        color = "white"
+        if valf > 0:
+            color = "limegreen"
+        elif valf < 0:
+            color = "#FF4141"
+        prefix = "+" if valf > 0 else ""
+        if int_display:
+            val_fmt = f"{prefix}{int(valf):,}"
+        else:
+            val_fmt = f"{prefix}{valf:,.4f}".rstrip('0').rstrip('.')
+        return f"<span style='color:{color}; font-weight: 600;'>{val_fmt}</span>"
+
     def calc_and_display_delta_table(
-        df, id_col, delta_cols, table_name, date_col="date", normalize_key_func=None
+        df, id_col, delta_cols, table_name, date_col="date", normalize_key_func=None,
+        delta_int_col=None
     ):
         df[date_col] = pd.to_datetime(df[date_col], errors='coerce', infer_datetime_format=True)
         if df[date_col].isnull().any():
@@ -250,24 +266,37 @@ with tab2:
                     )
                 else:
                     merged[f"{col_pretty} Δ"] = ""
-            # Remove prev and merge key columns, keep order
+
             keep = [c for c in merged.columns if not c.endswith("_prev") and c != "MergeKey"]
             today_df = merged[keep]
-
-        # Always drop MergeKey column if it exists
-        if "MergeKey" in today_df.columns:
-            today_df = today_df.drop(columns=["MergeKey"])
-
         # Formatting for display
-        for c in today_df.columns:
-            if "Δ" in c:
-                today_df[c] = today_df[c].apply(lambda v: f"{v:+,}" if pd.notnull(v) and str(v).replace('.','',1).replace('-','').isdigit() else "")
-            elif "Accounts" in c or "Sum" in c or "XRP" in c:
-                today_df[c] = today_df[c].apply(format_int)
+        def display(val, col):
+            # Which delta columns to treat as int?
+            if "Δ" in col:
+                is_int_col = (col == delta_int_col)
+                return color_delta(val, int_display=is_int_col)
+            elif "Accounts" in col or "Sum" in col or "XRP" in col:
+                return format_int(val)
+            return val
+
+        styled_df = today_df.drop(columns=[date_col]).copy()
+        # Render as markdown for coloring
+        styled_df = styled_df.astype(str)
+        for col in styled_df.columns:
+            if col.endswith("Δ"):
+                is_int = (col == delta_int_col)
+                styled_df[col] = today_df[col].apply(lambda v: color_delta(v, int_display=is_int))
+            elif col in ["Accounts", "Accounts ≥ Threshold"]:
+                styled_df[col] = today_df[col].apply(format_int)
+            elif col in ["Sum in Range (XRP)", "XRP ≥ Threshold"]:
+                styled_df[col] = today_df[col].apply(format_int)
 
         st.subheader(table_name)
         st.markdown(f"<span style='color:#aaa;'>Date: {sel_date}</span>", unsafe_allow_html=True)
-        st.dataframe(today_df.drop(columns=[date_col]), use_container_width=True, hide_index=True)
+        st.markdown(
+            styled_df.to_html(escape=False, index=False),
+            unsafe_allow_html=True,
+        )
         st.download_button(
             label=f"Download {table_name}",
             data=today_df.to_csv(index=False).encode(),
@@ -283,7 +312,8 @@ with tab2:
             id_col="Balance Range (XRP)",
             delta_cols=["Accounts", "Sum in Range (XRP)"],
             table_name="Number Of Accounts And Sum Of Balance Range",
-            normalize_key_func=normalize_balance_range
+            normalize_key_func=normalize_balance_range,
+            delta_int_col="Accounts Δ"
         )
     else:
         st.info("current_stats_accounts_history.csv not found.")
@@ -296,10 +326,12 @@ with tab2:
             id_col="Threshold (%)",
             delta_cols=["Accounts ≥ Threshold", "XRP ≥ Threshold"],
             table_name="Percentage Of Accounts With Balances Greater Than Or Equal To",
-            normalize_key_func=normalize_threshold
+            normalize_key_func=normalize_threshold,
+            delta_int_col="Accounts ≥ Threshold Δ"
         )
     else:
         st.info("current_stats_percent_history.csv not found.")
+
 
 
 with tab1:
