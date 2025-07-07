@@ -60,6 +60,23 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 st.title("📊 XRP Rich List Interactive Dashboard")
+def normalize_balance_range(x):
+    if pd.isna(x):
+        return None
+    if isinstance(x, str):
+        x = x.replace(',', '').split('-')[0].strip()
+    try:
+        return float(x)
+    except Exception:
+        return x
+
+def normalize_threshold(val):
+    try:
+        if isinstance(val, str):
+            return float(val.replace('%','').replace(',','').strip())
+        return float(val)
+    except Exception:
+        return None
 
 def format_int(val):
     try:
