@@ -168,155 +168,166 @@ def format_xrp_thresh(x):
 # ---- MAIN TABS ----
 tab2, tab1 = st.tabs(["📋 Current Statistics", "📈 Rich List Charts"])
 
+import streamlit as st
+import pandas as pd
+import os
+
+def format_int(val):
+    try:
+        v = float(val)
+        return f"{int(v):,}" if v.is_integer() else f"{v:,.4f}".rstrip('0').rstrip('.')
+    except Exception:
+        return val
+
+def clean_numeric(val):
+    if pd.isnull(val):
+        return float('nan')
+    if isinstance(val, str):
+        val = val.replace(',', '').replace('XRP','').replace('%','').strip()
+    try:
+        return float(val)
+    except Exception:
+        return float('nan')
+
+def normalize_balance_range(x):
+    if pd.isna(x): return None
+    if isinstance(x, str):
+        x = x.replace(',','').split('-')[0].strip()
+    try:
+        return float(x)
+    except:
+        return x
+
+def normalize_threshold(val):
+    try:
+        if isinstance(val, str):
+            return float(val.replace('%','').replace(',','').strip())
+        return float(val)
+    except Exception:
+        return None
+
+def calc_and_display_delta_table(
+    df, id_col, delta_cols, table_name, date_col="date", normalize_key_func=None, int_delta_cols=[]
+):
+    df[date_col] = pd.to_datetime(df[date_col], errors='coerce', infer_datetime_format=True)
+    if df[date_col].isnull().any():
+        st.warning(f"Some rows in {table_name} have invalid date format.")
+
+    dates_available = sorted(df[date_col].dt.date.unique(), reverse=True)
+    sel_date = st.selectbox(
+        f"Select Date for {table_name}:", dates_available, 0, key=f"date_{table_name}"
+    )
+    show_delta = st.checkbox(
+        f"Show change vs previous day", value=True, key=f"delta_{table_name}"
+    )
+
+    today_df = df[df[date_col].dt.date == sel_date].copy()
+    yest_df = df[df[date_col].dt.date == (sel_date - pd.Timedelta(days=1))].copy()
+
+    today_df = today_df.drop_duplicates(subset=[id_col])
+    yest_df = yest_df.drop_duplicates(subset=[id_col])
+
+    keep_cols = [date_col] + [id_col] + delta_cols
+    today_df = today_df[keep_cols].reset_index(drop=True)
+    yest_df = yest_df[keep_cols].reset_index(drop=True)
+
+    pretty_map = {
+        "Balance Range (XRP)": "Balance Range (XRP)",
+        "Sum in Range (XRP)": "Sum in Range (XRP)",
+        "Accounts": "Accounts",
+        "Threshold (%)": "Threshold (%)",
+        "Accounts ≥ Threshold": "Accounts ≥ Threshold",
+        "XRP ≥ Threshold": "XRP ≥ Threshold"
+    }
+    today_df.columns = [c if c not in pretty_map else pretty_map[c] for c in today_df.columns]
+    yest_df.columns = [c if c not in pretty_map else pretty_map[c] for c in yest_df.columns]
+    id_col_pretty = id_col if id_col not in pretty_map else pretty_map[id_col]
+
+    if normalize_key_func is not None:
+        today_df["MergeKey"] = today_df[id_col_pretty].apply(normalize_key_func)
+        yest_df["MergeKey"] = yest_df[id_col_pretty].apply(normalize_key_func)
+        merge_id = "MergeKey"
+    else:
+        merge_id = id_col_pretty
+
+    if show_delta and not yest_df.empty:
+        merged = today_df.merge(
+            yest_df,
+            on=merge_id,
+            how="left",
+            suffixes=('', '_prev')
+        )
+        for col in delta_cols:
+            col_pretty = pretty_map.get(col, col)
+            col_prev = f"{col_pretty}_prev"
+            if col_pretty in merged.columns and col_prev in merged.columns:
+                delta = merged[col_pretty].apply(clean_numeric) - merged[col_prev].apply(clean_numeric)
+                if col_pretty in int_delta_cols:
+                    merged[f"{col_pretty} Δ"] = delta.apply(lambda v: f"{int(v):+d}" if pd.notnull(v) else "")
+                else:
+                    merged[f"{col_pretty} Δ"] = delta.apply(lambda v: f"{v:+,}" if pd.notnull(v) else "")
+            else:
+                merged[f"{col_pretty} Δ"] = ""
+        keep = [c for c in merged.columns if not c.endswith("_prev") and c != "MergeKey"]
+        today_df = merged[keep]
+
+    # Formatting
+    for c in today_df.columns:
+        if "Δ" in c or "Delta" in c:
+            continue # already formatted
+        elif "Accounts" in c or "Sum" in c or "XRP" in c:
+            today_df[c] = today_df[c].apply(format_int)
+
+    st.subheader(table_name)
+    st.markdown(f"<span style='color:#aaa;'>Date: {sel_date}</span>", unsafe_allow_html=True)
+    st.dataframe(today_df.drop(columns=[date_col]), use_container_width=True, hide_index=True)
+    st.download_button(
+        label=f"Download {table_name}",
+        data=today_df.to_csv(index=False).encode(),
+        file_name=f"{table_name.replace(' ', '_')}_{sel_date}.csv",
+        mime='text/csv',
+    )
+
 with tab2:
     st.header("Current XRP Ledger Statistics")
+
     ACCOUNTS_CSV = "current_stats_accounts_history.csv"
     PERCENT_CSV  = "current_stats_percent_history.csv"
 
-    # ... all your utility functions as before ...
-
-    def calc_and_display_delta_table(
-        df, id_col, delta_cols, table_name, date_col="date", normalize_key_func=None, int_delta_cols=None, style_enabled=True
-    ):
-        df[date_col] = pd.to_datetime(df[date_col], errors='coerce', infer_datetime_format=True)
-        if df[date_col].isnull().any():
-            st.warning(f"Some rows in {table_name} have invalid date format.")
-        dates_available = sorted(df[date_col].dt.date.unique(), reverse=True)
-        sel_date = st.selectbox(
-            f"Select Date for {table_name}:", dates_available, 0, key=f"date_{table_name}"
-        )
-        show_delta = st.checkbox(
-            f"Show change vs previous day", value=True, key=f"delta_{table_name}"
-        )
-        today_df = df[df[date_col].dt.date == sel_date].copy()
-        yest_df = df[df[date_col].dt.date == (sel_date - pd.Timedelta(days=1))].copy()
-        today_df = today_df.drop_duplicates(subset=[id_col])
-        yest_df = yest_df.drop_duplicates(subset=[id_col])
-        keep_cols = [date_col] + [id_col] + delta_cols
-        today_df = today_df[keep_cols].reset_index(drop=True)
-        yest_df = yest_df[keep_cols].reset_index(drop=True)
-        pretty_map = {
-            "Balance Range (XRP)": "Balance Range (XRP)",
-            "Sum in Range (XRP)": "Sum in Range (XRP)",
-            "Accounts": "Accounts",
-            "Threshold (%)": "Threshold (%)",
-            "Accounts ≥ Threshold": "Accounts ≥ Threshold",
-            "XRP ≥ Threshold": "XRP ≥ Threshold"
-        }
-        today_df.columns = [c if c not in pretty_map else pretty_map[c] for c in today_df.columns]
-        yest_df.columns = [c if c not in pretty_map else pretty_map[c] for c in yest_df.columns]
-        id_col_pretty = id_col if id_col not in pretty_map else pretty_map[id_col]
-
-        # Merge for delta
-        if normalize_key_func is not None:
-            today_df["MergeKey"] = today_df[id_col_pretty].apply(normalize_key_func)
-            yest_df["MergeKey"] = yest_df[id_col_pretty].apply(normalize_key_func)
-            merge_id = "MergeKey"
-        else:
-            merge_id = id_col_pretty
-        if show_delta and not yest_df.empty:
-            merged = today_df.merge(
-                yest_df, on=merge_id, how="left", suffixes=('', '_prev')
-            )
-            for col in delta_cols:
-                col_pretty = pretty_map.get(col, col)
-                col_prev = f"{col_pretty}_prev"
-                if col_pretty in merged.columns and col_prev in merged.columns:
-                    merged[f"{col_pretty} Δ"] = (
-                        merged[col_pretty].apply(clean_numeric) -
-                        merged[col_prev].apply(clean_numeric)
-                    )
-                else:
-                    merged[f"{col_pretty} Δ"] = ""
-            keep = [c for c in merged.columns if not c.endswith("_prev") and c != "MergeKey"]
-            today_df = merged[keep]
-
-        # Formatting for display
-        if show_delta:
-            for c in today_df.columns:
-                if int_delta_cols and c in int_delta_cols:
-                    today_df[c] = today_df[c].apply(
-                        lambda v: f"{int(v):+d}" if pd.notnull(v) and v != "" and str(v).replace('.','',1).replace('-','').isdigit() else ""
-                    )
-                elif "Δ" in c:
-                    today_df[c] = today_df[c].apply(
-                        lambda v: f"{v:+,.4f}".rstrip('0').rstrip('.') if pd.notnull(v) and v != "" and isinstance(v, (int, float)) else ""
-                    )
-                elif "Accounts" in c or "Sum" in c or "XRP" in c:
-                    today_df[c] = today_df[c].apply(format_int)
-
-        # Remove MergeKey if exists
-        if "MergeKey" in today_df.columns:
-            today_df = today_df.drop(columns=["MergeKey"])
-
-        # Color delta columns if possible (Streamlit >=1.33)
-        can_style = False
+    # Table 1: Number Of Accounts And Sum Of Balance Range
+    if os.path.exists(ACCOUNTS_CSV):
+        df = pd.read_csv(ACCOUNTS_CSV)
         try:
-            import streamlit
-            v = [int(x) for x in streamlit.__version__.split('.')]
-            can_style = (v[0] > 1 or (v[0] == 1 and v[1] >= 33)) and style_enabled
-        except Exception:
-            pass
-
-        def color_delta(val):
-            try:
-                v = float(val.replace('+','').replace(',','')) if isinstance(val, str) else float(val)
-                if v > 0: return 'color: #11e811; font-weight:bold;'
-                elif v < 0: return 'color: #ff3b3b; font-weight:bold;'
-            except: pass
-            return ''
-        delta_cols_to_color = [c for c in today_df.columns if "Δ" in c]
-
-        st.subheader(table_name)
-        st.markdown(f"<span style='color:#aaa;'>Date: {sel_date}</span>", unsafe_allow_html=True)
-
-        if can_style and show_delta:
-            styler = today_df.style
-            if delta_cols_to_color:
-                styler = styler.applymap(color_delta, subset=delta_cols_to_color)
-            st.dataframe(today_df.drop(columns=[date_col]), use_container_width=True, hide_index=True, height=540, styler=styler)
-        else:
-            st.dataframe(today_df.drop(columns=[date_col]), use_container_width=True, hide_index=True, height=540)
-
-        st.download_button(
-            label=f"Download {table_name}",
-            data=today_df.to_csv(index=False).encode(),
-            file_name=f"{table_name.replace(' ', '_')}_{sel_date}.csv",
-            mime='text/csv',
-        )
-
-    # Show both tables, with try/except so one doesn't block the other!
-    try:
-        if os.path.exists(ACCOUNTS_CSV):
-            df = pd.read_csv(ACCOUNTS_CSV)
             calc_and_display_delta_table(
                 df,
                 id_col="Balance Range (XRP)",
                 delta_cols=["Accounts", "Sum in Range (XRP)"],
                 table_name="Number Of Accounts And Sum Of Balance Range",
                 normalize_key_func=normalize_balance_range,
-                int_delta_cols=["Accounts Δ"]
+                int_delta_cols=["Accounts"]
             )
-        else:
-            st.info("current_stats_accounts_history.csv not found.")
-    except Exception as e:
-        st.error(f"Table 1 error: {e}")
+        except Exception as e:
+            st.error(f"Table 1 error: {e}")
+    else:
+        st.info("current_stats_accounts_history.csv not found.")
 
-    try:
-        if os.path.exists(PERCENT_CSV):
-            df = pd.read_csv(PERCENT_CSV)
+    # Table 2: Percentage Of Accounts With Balances Greater Than Or Equal To
+    if os.path.exists(PERCENT_CSV):
+        df = pd.read_csv(PERCENT_CSV)
+        try:
             calc_and_display_delta_table(
                 df,
                 id_col="Threshold (%)",
                 delta_cols=["Accounts ≥ Threshold", "XRP ≥ Threshold"],
                 table_name="Percentage Of Accounts With Balances Greater Than Or Equal To",
                 normalize_key_func=normalize_threshold,
-                int_delta_cols=["Accounts ≥ Threshold Δ"]
+                int_delta_cols=["Accounts ≥ Threshold"]
             )
-        else:
-            st.info("current_stats_percent_history.csv not found.")
-    except Exception as e:
-        st.error(f"Table 2 error: {e}")
+        except Exception as e:
+            st.error(f"Table 2 error: {e}")
+    else:
+        st.info("current_stats_percent_history.csv not found.")
+
 
 
 
