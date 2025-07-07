@@ -291,8 +291,8 @@ def calc_and_display_delta_table(
 with tab2:
     st.header("Current XRP Ledger Statistics")
 
-    ACCOUNTS_CSV = "current_stats_accounts_history.csv"
-    PERCENT_CSV  = "current_stats_percent_history.csv"
+    ACCOUNTS_CSV = "csv/current_stats_accounts_history.csv"
+    PERCENT_CSV  = "csv/current_stats_percent_history.csv"
 
     # Table 1: Number Of Accounts And Sum Of Balance Range
     if os.path.exists(ACCOUNTS_CSV):
@@ -338,7 +338,7 @@ with tab2:
 with tab1:
     # Find all _Series1_DAILY_LATEST.csv files and map them to "base name" for dropdown
     csv_files = [
-        f for f in os.listdir('.')
+        f for f in os.listdir('csv')
         if f.endswith('_Series1_DAILY_LATEST.csv')
     ]
     file_to_title = {
@@ -366,7 +366,7 @@ with tab1:
         format_func=lambda f: file_to_title[f]
     )
 
-    df = pd.read_csv(csv_choice)
+    df = pd.read_csv(os.path.join('csv', csv_choice))
     date_col = None
     for col in df.columns:
         if 'date' in col.lower():
