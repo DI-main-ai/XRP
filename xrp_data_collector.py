@@ -20,6 +20,49 @@ r = requests.get(url, headers=headers, timeout=15)
 r.raise_for_status()
 soup = BeautifulSoup(r.text, 'html.parser')
 
+# --- 1. Find "Last updated" datetime from the page ---
+last_updated_text = None
+for tag in soup.find_all(string=re.compile("Last updated:")):
+    last_updated_text = tag
+    break
+
+if not last_updated_text:
+    print("Could not find 'Last updated' on the page. Exiting!")
+    exit()
+
+# Extract the timestamp (format: 2025-07-06 03:34:10 UTC)
+match = re.search(r"Last updated:\s*([0-9\- :]+) UTC", last_updated_text)
+if not match:
+    print("Couldn't extract the last updated datetime. Exiting!")
+    exit()
+
+last_updated_dt_str = match.group(1)
+last_updated_dt = datetime.strptime(last_updated_dt_str, '%Y-%m-%d %H:%M:%S')
+print(f"Site last updated at: {last_updated_dt} UTC")
+
+# --- 2. Compare with your local last_updated.txt (or create it if missing) ---
+last_updated_file = os.path.join('csv', 'last_updated.txt')
+
+if os.path.exists(last_updated_file):
+    with open(last_updated_file, 'r') as f:
+        prev_dt_str = f.read().strip()
+        if prev_dt_str:
+            prev_dt = datetime.strptime(prev_dt_str, '%Y-%m-%d %H:%M:%S')
+            if last_updated_dt <= prev_dt:
+                print(f"Site last updated ({last_updated_dt}) is NOT newer than our last update ({prev_dt}). Skipping.")
+                exit()
+else:
+    # If file doesn't exist, create the csv folder if needed
+    os.makedirs('csv', exist_ok=True)
+
+# --- If we reach here, data is NEW and we continue ---
+print("New data detected. Proceeding with update.")
+
+# After a successful update, save the new last_updated_dt
+with open(last_updated_file, 'w') as f:
+    f.write(last_updated_dt.strftime('%Y-%m-%d %H:%M:%S'))
+
+
 currentstats_div = soup.find('div', id=lambda x: x and x.lower() == 'currentstats')
 if not currentstats_div:
     print("Couldn't find the 'Currentstats' div!")
