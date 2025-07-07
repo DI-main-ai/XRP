@@ -141,7 +141,6 @@ with tab2:
     PERCENT_CSV  = "current_stats_percent_history.csv"
 
     # --- Utility functions ---
-
     def format_int(val):
         try:
             v = float(val)
@@ -212,7 +211,7 @@ with tab2:
         today_df = today_df[keep_cols].reset_index(drop=True)
         yest_df = yest_df[keep_cols].reset_index(drop=True)
 
-        # Rename columns to prettify (optional, feel free to adapt)
+        # Rename columns to prettify
         pretty_map = {
             "Balance Range (XRP)": "Balance Range (XRP)",
             "Sum in Range (XRP)": "Sum in Range (XRP)",
@@ -241,11 +240,9 @@ with tab2:
                 how="left",
                 suffixes=('', '_prev')
             )
-            # Add delta columns for each requested delta_col
             for col in delta_cols:
                 col_pretty = pretty_map.get(col, col)
                 col_prev = f"{col_pretty}_prev"
-                # Compute delta safely with conversion
                 if col_pretty in merged.columns and col_prev in merged.columns:
                     merged[f"{col_pretty} Δ"] = (
                         merged[col_pretty].apply(clean_numeric) -
@@ -253,11 +250,13 @@ with tab2:
                     )
                 else:
                     merged[f"{col_pretty} Δ"] = ""
-
-            # Optionally remove the % delta column if not needed (remove Δ % below if you want)
             # Remove prev and merge key columns, keep order
             keep = [c for c in merged.columns if not c.endswith("_prev") and c != "MergeKey"]
             today_df = merged[keep]
+
+        # Always drop MergeKey column if it exists
+        if "MergeKey" in today_df.columns:
+            today_df = today_df.drop(columns=["MergeKey"])
 
         # Formatting for display
         for c in today_df.columns:
@@ -302,19 +301,6 @@ with tab2:
     else:
         st.info("current_stats_percent_history.csv not found.")
 
-
-    # Table 2: Percentage Of Accounts With Balances Greater Than Or Equal To
-    if os.path.exists(PERCENT_CSV):
-        df = pd.read_csv(PERCENT_CSV)
-        calc_and_display_delta_table(
-            df,
-            id_col="Threshold (%)",
-            delta_cols=["Accounts ≥ Threshold", "XRP ≥ Threshold"],
-            table_name="Percentage Of Accounts With Balances Greater Than Or Equal To",
-            normalize_key_func=normalize_threshold
-        )
-    else:
-        st.info("current_stats_percent_history.csv not found.")
 
 with tab1:
     # Find all _Series1_DAILY_LATEST.csv files and map them to "base name" for dropdown
