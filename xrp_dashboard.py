@@ -140,6 +140,8 @@ with tab2:
     ACCOUNTS_CSV = "current_stats_accounts_history.csv"
     PERCENT_CSV  = "current_stats_percent_history.csv"
 
+    import numpy as np
+
     # --- Formatting helpers ---
     def format_int(val):
         try:
@@ -258,10 +260,12 @@ with tab2:
             today_df = merged[[c for c in merged.columns if not c.endswith("_prev") and c != "MergeKey"]]
 
         # Format columns
+        html_delta_cols = []
         for c in today_df.columns:
             if c == id_col_pretty:
                 continue
             if "Δ" in c:
+                html_delta_cols.append(c)
                 # Int mode if specified, otherwise float mode
                 if int_delta_cols and any(x in c for x in int_delta_cols):
                     today_df[c] = today_df[c].apply(lambda v: delta_color(v, int_mode=True))
@@ -269,7 +273,13 @@ with tab2:
                     today_df[c] = today_df[c].apply(lambda v: delta_color(v, int_mode=False))
             elif "Accounts" in c or "Sum" in c or "XRP" in c:
                 today_df[c] = today_df[c].apply(format_int)
-        # Table display (with HTML so colors work)
+
+        # Build column config for only HTML columns!
+        col_cfg = {
+            c: st.column_config.TextColumn(c, html=True)
+            for c in html_delta_cols
+        }
+
         st.subheader(table_name)
         st.markdown(f"<span style='color:#aaa;'>Date: {sel_date}</span>", unsafe_allow_html=True)
         st.write("")  # space
@@ -277,7 +287,7 @@ with tab2:
             today_df.drop(columns=[date_col]),
             use_container_width=True,
             hide_index=True,
-            column_config={c: st.column_config.TextColumn(c, html=True) for c in today_df.columns}
+            column_config=col_cfg
         )
         st.download_button(
             label=f"Download {table_name}",
@@ -313,6 +323,7 @@ with tab2:
         )
     else:
         st.info("current_stats_percent_history.csv not found.")
+
 
 
 
