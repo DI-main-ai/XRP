@@ -424,7 +424,9 @@ with tab2:
 
 
 with tab1:
-    # Find all _Series1_DAILY_LATEST.csv files and map them to "base name" for dropdown
+    st.header("📈 Rich List Charts")
+
+    # List and sort all Series1_DAILY_LATEST.csv files as before
     csv_files = [
         f for f in os.listdir('csv')
         if f.endswith('_Series1_DAILY_LATEST.csv')
@@ -434,6 +436,7 @@ with tab1:
         for f in csv_files
     }
 
+    # Organize for display: non-numeric first, then numeric by order
     non_num = sorted(
         [f for f, title in file_to_title.items() if is_not_number_start(title)],
         key=lambda x: file_to_title[x]
@@ -448,81 +451,76 @@ with tab1:
         st.error("No CSV files found in this folder!")
         st.stop()
 
-    csv_choice = st.sidebar.selectbox(
-        "Choose a data range/table:",
-        ordered_csvs,
-        format_func=lambda f: file_to_title[f]
-    )
+    # Loop through and display all charts!
+    for csv_file in ordered_csvs:
+        df = pd.read_csv(os.path.join('csv', csv_file))
+        title = file_to_title[csv_file]
+        date_col = None
+        for col in df.columns:
+            if 'date' in col.lower():
+                date_col = col
+                break
 
-    df = pd.read_csv(os.path.join('csv', csv_choice))
-    date_col = None
-    for col in df.columns:
-        if 'date' in col.lower():
-            date_col = col
-            break
+        y_label = "XRP"
+        if "wallet" in title.lower():
+            y_label = "Wallet Count"
 
-    y_label = "XRP"
-    if "wallet" in file_to_title[csv_choice].lower():
-        y_label = "Wallet Count"
-
-    st.subheader(f"Chart: {file_to_title[csv_choice]}")
-    if date_col is not None and 'value' in df.columns:
-        df[date_col] = pd.to_datetime(df[date_col], errors='coerce', infer_datetime_format=True).dt.date
-        if df["date"].isnull().any():
-            st.warning(f"Some rows in {fname} have invalid date format. Check your CSVs.")
-        # Plot chart (abbreviated y-axis)
-        fig = px.line(
-            df,
-            x=date_col if date_col else df.columns[0],
-            y='value',
-            markers=True,
-        )
-        fig.update_traces(line=dict(width=3))
-        fig.update_yaxes(
-            tickformat="~s",  # Abbreviated y-axis: 1.2M, 53K, etc.
-            title="Total XRP" if "xrp" in file_to_title[csv_choice].lower() else "Wallet Count"
-        )
-        fig.update_layout(
-            xaxis_title="Date",
-            hovermode="x unified",
-            hoverlabel=dict(namelength=-1),
-            plot_bgcolor='#1e222d',
-            paper_bgcolor='#1e222d',
-            font=dict(color='#F1F1F1'),
-        )
-        st.plotly_chart(fig, use_container_width=True)
-
-        # ---- Data Table with full value ----
-        df_display = df.copy()
-        if "wallet count" in file_to_title[csv_choice].lower():
-            df_display = df_display.rename(columns={"value": "Wallet Count"})
-            value_col = "Wallet Count"
-        else:
-            df_display = df_display.rename(columns={"value": "Total XRP"})
-            value_col = "Total XRP"
-        # Format the values as full numbers (with commas)
-        if value_col in df_display.columns:
-            df_display[value_col] = df_display[value_col].apply(format_full_number)
-
-        # Sort descending by date for table
-        df_display = df_display.sort_values(by=date_col, ascending=False).reset_index(drop=True)
-
-        with st.expander("Show Data Table"):
-            st.dataframe(
-                df_display[[date_col, value_col]],
-                use_container_width=True
+        st.subheader(f"Chart: {title}")
+        if date_col is not None and 'value' in df.columns:
+            df[date_col] = pd.to_datetime(df[date_col], errors='coerce', infer_datetime_format=True).dt.date
+            # Plot chart (abbreviated y-axis)
+            fig = px.line(
+                df,
+                x=date_col if date_col else df.columns[0],
+                y='value',
+                markers=True,
             )
+            fig.update_traces(line=dict(width=3))
+            fig.update_yaxes(
+                tickformat="~s",  # Abbreviated y-axis: 1.2M, 53K, etc.
+                title="Total XRP" if "xrp" in title.lower() else "Wallet Count"
+            )
+            fig.update_layout(
+                xaxis_title="Date",
+                hovermode="x unified",
+                hoverlabel=dict(namelength=-1),
+                plot_bgcolor='#1e222d',
+                paper_bgcolor='#1e222d',
+                font=dict(color='#F1F1F1'),
+            )
+            st.plotly_chart(fig, use_container_width=True)
 
-        st.download_button(
-            label="Download this table as CSV",
-            data=df_display.to_csv(index=False).encode(),
-            file_name=csv_choice,
-            mime='text/csv',
-        )
-    else:
-        st.warning("No 'date' or 'value' column found! Chart x-axis may not be time-based.")
+            # Data Table below chart
+            df_display = df.copy()
+            if "wallet count" in title.lower():
+                df_display = df_display.rename(columns={"value": "Wallet Count"})
+                value_col = "Wallet Count"
+            else:
+                df_display = df_display.rename(columns={"value": "Total XRP"})
+                value_col = "Total XRP"
+            if value_col in df_display.columns:
+                df_display[value_col] = df_display[value_col].apply(format_full_number)
+            df_display = df_display.sort_values(by=date_col, ascending=False).reset_index(drop=True)
 
-    st.caption("Touch, zoom, and pan the chart. Made for XRP data nerds! 🚀")
+            with st.expander("Show Data Table", expanded=False):
+                st.dataframe(
+                    df_display[[date_col, value_col]],
+                    use_container_width=True
+                )
+            st.download_button(
+                label="Download this table as CSV",
+                data=df_display.to_csv(index=False).encode(),
+                file_name=csv_file,
+                mime='text/csv',
+            )
+        else:
+            st.warning("No 'date' or 'value' column found! Chart x-axis may not be time-based.")
+
+        st.caption("Touch, zoom, and pan the chart.")
+
+    st.info("Scroll down to see all charts!")
+
+
 
 
 # ---- OPTIONAL TIP JAR ----
