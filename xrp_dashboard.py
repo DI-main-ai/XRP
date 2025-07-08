@@ -464,120 +464,70 @@ with tab1:
             if 'date' in col.lower():
                 date_col = col
                 break
-
-        is_wallet_count = is_wallet_count_file(csv_file)
-        yaxis_label = "Wallet Count" if is_wallet_count else "Total XRP"
     
-        # Chart title formatting
-        if "–" in title or "-" in title:
-            st.subheader(f"Chart: {title} XRP Balance Range")
-        else:
-            st.subheader(f"Chart: {title}")
+        # Decide the label based on the title (or file name, whatever is unique)
+        value_col = "Wallet Count" if "wallet count" in title.lower() or "historic wallet count" in title.lower() else "Total XRP"
     
-        if date_col is not None and 'value' in df.columns:
-            df[date_col] = pd.to_datetime(df[date_col], errors='coerce', infer_datetime_format=True).dt.date
+        # Rename column for plotting
+        df_plot = df.rename(columns={"value": value_col})
     
-            fig = px.line(
-                df,
-                x=date_col,
-                y='value',
-                markers=True,
-            )
-            fig.update_yaxes(
-                tickformat="~s",
-                title_text=yaxis_label
-            )
-            fig.update_traces(
-                line=dict(width=1.5),
-                marker=dict(size=4, color='#aad8ff', line=dict(width=0)),
-                mode="lines+markers",
-                hovertemplate="<b>%{x|%b %d, %Y}</b><br>value=%{y:,}<extra></extra>",
-            )
-            fig.update_layout(
-                xaxis_title="Date",
-                hovermode="x",
-                xaxis=dict(showspikes=True, spikemode='across', spikethickness=2),
-                hoverlabel=dict(namelength=-1),
-                plot_bgcolor='#1e222d',
-                paper_bgcolor='#1e222d',
-                font=dict(color='#F1F1F1'),
-                dragmode=False
-            )
-            st.plotly_chart(fig, use_container_width=True, config={
-                'displayModeBar': False,
-                'staticPlot': False,
-                'scrollZoom': False,
-                'editable': False,
-                'doubleClick': 'reset',
-            })
+        # Plot with correct y axis
+        fig = px.line(
+            df_plot,
+            x=date_col,
+            y=value_col,  # MUST match the renamed col
+            markers=True,
+            labels={value_col: value_col}
+        )
+        fig.update_yaxes(
+            tickformat="~s",
+            title_text=value_col   # <--- This will match exactly!
+        )
+        fig.update_traces(
+            line=dict(width=1.5),
+            marker=dict(size=4, color='#aad8ff', line=dict(width=0)),
+            mode="lines+markers",
+            hovertemplate=f"<b>%{{x|%b %d, %Y}}</b><br>{value_col}=%{{y:,}}<extra></extra>",
+        )
+        fig.update_layout(
+            xaxis_title="Date",
+            hovermode="x",
+            xaxis=dict(showspikes=True, spikemode='across', spikethickness=2),
+            hoverlabel=dict(namelength=-1),
+            plot_bgcolor='#1e222d',
+            paper_bgcolor='#1e222d',
+            font=dict(color='#F1F1F1'),
+            dragmode=False
+        )
+        st.plotly_chart(fig, use_container_width=True, config={
+            'displayModeBar': False,
+            'staticPlot': False,
+            'scrollZoom': False,
+            'editable': False,
+            'doubleClick': 'reset',
+        })
     
-            # -------- Data Table below chart ----------
-            df_display = df.copy()
-            if "wallet count" in title.lower():
-                value_col = "Wallet Count"
-            else:
-                value_col = "Total XRP"
-            
-            # Rename the 'value' column BEFORE plotting
-            df_plot = df.copy().rename(columns={"value": value_col})
-            
-            fig = px.line(
-                df_plot,
-                x=date_col if date_col else df_plot.columns[0],
-                y=value_col,  # <- Plot by new name!
-                markers=True,
+        # Table (ensure value_col in columns)
+        df_display = df_plot.copy()
+        df_display[value_col] = df_display[value_col].apply(format_full_number)
+        df_display = df_display.sort_values(by=date_col, ascending=False).reset_index(drop=True)
+    
+        with st.expander("Show Data Table", expanded=False):
+            st.dataframe(
+                df_display[[date_col, value_col]],
+                use_container_width=True
             )
-            fig.update_yaxes(
-                tickformat="~s",
-                title_text=value_col
-            )
-            fig.update_traces(
-                line=dict(width=1.5),
-                marker=dict(size=4, color='#aad8ff', line=dict(width=0)),
-                mode="lines+markers",
-                hovertemplate="<b>%{x|%b %d, %Y}</b><br>value=%{y:,}<extra></extra>",
-            )
-            fig.update_layout(
-                xaxis_title="Date",
-                hovermode="x",
-                xaxis=dict(showspikes=True, spikemode='across', spikethickness=2),
-                hoverlabel=dict(namelength=-1),
-                plot_bgcolor='#1e222d',
-                paper_bgcolor='#1e222d',
-                font=dict(color='#F1F1F1'),
-                dragmode=False
-            )
-            st.plotly_chart(fig, use_container_width=True, config={
-                'displayModeBar': False,
-                'staticPlot': False,
-                'scrollZoom': False,
-                'editable': False,
-                'doubleClick': 'reset',
-            })
-            
-            # Data Table as before, using value_col
-            df_display = df_display.rename(columns={"value": value_col})
-            df_display[value_col] = df_display[value_col].apply(format_full_number)
-            df_display = df_display.sort_values(by=date_col, ascending=False).reset_index(drop=True)
-            
-            with st.expander("Show Data Table", expanded=False):
-                st.dataframe(
-                    df_display[[date_col, value_col]],
-                    use_container_width=True
-                )
-            st.download_button(
-                label="Download this table as CSV",
-                data=df_display.to_csv(index=False).encode(),
-                file_name=csv_file,
-                mime='text/csv',
-            )
-
-        else:
-            st.warning("No 'date' or 'value' column found! Chart x-axis may not be time-based.")
+        st.download_button(
+            label="Download this table as CSV",
+            data=df_display.to_csv(index=False).encode(),
+            file_name=csv_file,
+            mime='text/csv',
+        )
     
         st.caption("Click or Touch any Point on the Chart to see its Hoverbox Value. Tap either Axis to reset Hoverbox")
     
     st.info("Scroll down to see all charts!")
+
 
 
 
