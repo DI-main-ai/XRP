@@ -537,7 +537,7 @@ with tab1:
         else:
             st.warning("No 'date' or 'value' column found! Chart x-axis may not be time-based.")
 
-        st.caption("Touch, zoom, and pan the chart.")
+        st.caption("Click or Touch any Point on the Chart to see it's Value. Double Tap either Axis to reset")
 
     st.info("Scroll down to see all charts!")
 
