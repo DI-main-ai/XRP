@@ -480,8 +480,8 @@ with tab1:
                 markers=True,
             )
             fig.update_traces(
-                line=dict(width=1),  # Thinner line
-                marker=dict(size=12, color='#aad8ff', line=dict(width=0)),
+                line=dict(width=1.5),  # Thinner line
+                marker=dict(size=4, color='#aad8ff', line=dict(width=0)),
                 mode="lines+markers",
                 hovertemplate="<b>%{x|%b %d, %Y}</b><br>value=%{y:,}<extra></extra>",
                 # line_shape="spline"  # Uncomment for a smooth spline
