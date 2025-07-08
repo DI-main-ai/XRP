@@ -482,7 +482,6 @@ with tab1:
                 x=date_col,
                 y='value',
                 markers=True,
-                labels={'value': yaxis_label}
             )
             fig.update_yaxes(
                 tickformat="~s",
@@ -524,7 +523,8 @@ with tab1:
             if value_col in df_display.columns:
                 df_display[value_col] = df_display[value_col].apply(format_full_number)
             df_display = df_display.sort_values(by=date_col, ascending=False).reset_index(drop=True)
-    
+
+            yaxis_label = value_col 
             with st.expander("Show Data Table", expanded=False):
                 st.dataframe(
                     df_display[[date_col, value_col]],
