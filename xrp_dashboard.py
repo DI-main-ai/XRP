@@ -343,9 +343,22 @@ with tab2:
 
         # Format for display
         display_summary = summary.copy()
-        for col in ['Wallets ≥ 1M XRP', 'Wallets ≥ 100K XRP', 'Δ vs Prior Day (1M+)', 'Δ vs Prior Day (100K+)']:
-            display_summary[col] = display_summary[col].map(format_number)
+        
+        def signed_number(val):
+            val = int(val)
+            if val > 0:
+                return f"+{val:,}"
+            elif val < 0:
+                return f"{val:,}"
+            else:
+                return "0"
+        
+        display_summary['Wallets ≥ 1M XRP'] = display_summary['Wallets ≥ 1M XRP'].map(format_number)
+        display_summary['Wallets ≥ 100K XRP'] = display_summary['Wallets ≥ 100K XRP'].map(format_number)
+        display_summary['Δ vs Prior Day (1M+)'] = display_summary['Δ vs Prior Day (1M+)'].map(signed_number)
+        display_summary['Δ vs Prior Day (100K+)'] = display_summary['Δ vs Prior Day (100K+)'].map(signed_number)
         display_summary = display_summary.sort_values('Date', ascending=False).reset_index(drop=True)
+
 
         st.markdown("### 🦈 Whale Wallet Count Summary (by Day)")
         st.caption("Sum of all XRP wallets holding at least 1,000,000 XRP or 100,000 XRP. Shows daily totals and change from the previous day.")
@@ -415,16 +428,17 @@ with tab1:
         for f in csv_files
     }
 
-    # Organize for display: non-numeric first, then numeric by order
+    # Organize for display: non-numeric first, then numeric by *descending* order
     non_num = sorted(
         [f for f, title in file_to_title.items() if is_not_number_start(title)],
         key=lambda x: file_to_title[x]
     )
     num_start = sorted(
         [f for f, title in file_to_title.items() if not is_not_number_start(title)],
-        key=lambda x: extract_leading_number(file_to_title[x])
+        key=lambda x: -extract_leading_number(file_to_title[x])
     )
     ordered_csvs = non_num + num_start
+
     def is_wallet_count_file(filename):
         # Normalize for robust detection
         s = filename.lower().replace('_', ' ').replace('-', ' ').replace('__', ' ')
