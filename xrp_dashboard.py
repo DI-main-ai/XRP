@@ -9,69 +9,33 @@ from datetime import datetime
 st.set_page_config(page_title="XRP Rich List Dashboard", initial_sidebar_state="collapsed", layout="centered")
 st.markdown("""
     <style>
-    /* Remove purple section highlight around st.markdown custom titles */
-    section[data-testid="stBlock"] > div[data-testid="stVerticalBlock"] > section[style*="background"] {
+    /* Kill ALL background/border/shadow on markdown chart titles */
+    div[data-testid="stMarkdownContainer"] {
         background: none !important;
         box-shadow: none !important;
+        border: none !important;
         padding: 0 !important;
     }
-    /* Remove margin from custom chart title divs */
+    /* Remove background on Streamlit section containers */
+    section[data-testid^="stHorizontalBlock"], section[data-testid^="stVerticalBlock"], section[tabindex="0"] {
+        background: none !important;
+        box-shadow: none !important;
+    }
+    /* Reduce spacing to match */
     div[data-testid="stMarkdownContainer"] > div {
-        margin-bottom: 0.5em !important;
+        margin-bottom: 0.6em !important;
         margin-top: 2.2em !important;
         padding: 0 !important;
     }
-
-    /* --- Your custom dark theme styles below --- */
+    /* (Keep your dark theme below) */
     html, body, [data-testid="stAppViewContainer"] {
         background-color: #1e222d !important;
         color: #F1F1F1 !important;
     }
     .stApp { background-color: #1e222d !important; }
-    .stDataFrame, .stTable, .stMarkdown, .stCaption, .css-1n76uvr {
-        background-color: #232334 !important;
-        color: #f3f4f6 !important;
-    }
-    thead tr th, .stDataFrame thead {
-        background: #232334 !important;
-        color: #fafbfc !important;
-        border-bottom: 2px solid #333 !important;
-    }
-    .stDataFrame tbody, .stTable tbody, .stDataFrame tr, .stTable tr {
-        background-color: #232334 !important;
-        color: #f3f4f6 !important;
-    }
-    .stDataFrame td, .stTable td {
-        background-color: #232334 !important;
-        color: #f3f4f6 !important;
-        border-color: #333 !important;
-    }
-    .css-1544g2n, .css-1v0mbdj, .css-1hynsf2, .st-cq, .st-bb, .stSidebar, .stDropdown, .stSelectbox, .stTextInput, .stNumberInput {
-        background-color: #232334 !important;
-        color: #F1F1F1 !important;
-    }
-    .stSelectbox div[data-baseweb="select"] {
-        background-color: #232334 !important;
-        color: #F1F1F1 !important;
-    }
-    .stSelectbox [data-testid="stSelectbox"] {
-        background-color: #232334 !important;
-        color: #F1F1F1 !important;
-    }
-    .css-1g6gooi, .css-1d391kg {
-        background-color: #232334 !important;
-        color: #F1F1F1 !important;
-    }
-    .stDownloadButton > button { background: #3d4053 !important; color: #fff; }
-    .sidebar-content, .stSidebar {
-        color: #F1F1F1 !important;
-        background-color: #232334 !important;
-    }
-    .stMarkdown svg { color: #E7E7E7 !important; }
-    ::-webkit-scrollbar { width: 9px; background: #232334; }
-    ::-webkit-scrollbar-thumb { background: #37374f; border-radius: 4px;}
     </style>
-    """, unsafe_allow_html=True)
+""", unsafe_allow_html=True)
+
 
 
 st.title("📊 XRP Rich List Interactive Dashboard")
