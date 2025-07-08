@@ -470,10 +470,9 @@ with tab1:
         # Rename column for plotting
         df_plot = df.rename(columns={"value": value_col})
         if "–" in title or "-" in title:
-            chart_title = f"Chart: {title} XRP Balance Range"
+            chart_title = f"{title} XRP Balance Range"
         else:
-            chart_title = f"Chart: {title}"
-        st.subheader(chart_title)
+            chart_title = f"{title}"
         # Plot with correct y axis
         fig = px.line(
             df_plot,
