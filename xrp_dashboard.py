@@ -463,7 +463,7 @@ with tab1:
     
         # Check if this is the wallet count chart
         is_wallet_count = "wallet count" in title.lower() or "historic wallet count" in title.lower()
-    
+        yaxis_label = "Wallet Count" if is_wallet_count else "Total XRP"
         if "–" in title or "-" in title:
             st.subheader(f"Chart: {title} XRP Balance Range")
         else:
@@ -477,16 +477,18 @@ with tab1:
                 x=date_col if date_col else df.columns[0],
                 y='value',
                 markers=True,
+                labels={'value': yaxis_label}
             )
+            fig.update_yaxes(
+                tickformat="~s",
+                title_text=yaxis_label
+            )
+
             fig.update_traces(
                 line=dict(width=1.5),
                 marker=dict(size=4, color='#aad8ff', line=dict(width=0)),
                 mode="lines+markers",
                 hovertemplate="<b>%{x|%b %d, %Y}</b><br>value=%{y:,}<extra></extra>",
-            )
-            fig.update_yaxes(
-                tickformat="~s",
-                title_text="Wallet Count" if is_wallet_count else "Total XRP"
             )
             fig.update_layout(
                 xaxis_title="Date",
