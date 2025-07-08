@@ -492,7 +492,6 @@ with tab1:
             hovertemplate=f"<b>%{{x|%b %d, %Y}}</b><br>{value_col}=%{{y:,}}<extra></extra>",
         )
         fig.update_layout(
-            title_text=chart_title,
             xaxis_title="Date",
             hovermode="x",
             xaxis=dict(showspikes=True, spikemode='across', spikethickness=2),
@@ -502,6 +501,7 @@ with tab1:
             font=dict(color='#F1F1F1'),
             dragmode=False
         )
+        st.markdown(f"### {chart_title}")
         st.plotly_chart(fig, use_container_width=True, config={
             'displayModeBar': False,
             'staticPlot': False,
