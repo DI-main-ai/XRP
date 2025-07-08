@@ -503,7 +503,7 @@ with tab1:
             
             st.plotly_chart(fig, use_container_width=True, config={
                 'displayModeBar': False,      # Hides all tools!
-                'staticPlot': False,          # Still interactive hover!
+                'staticPlot': True,          # Still interactive hover!
                 'scrollZoom': False,          # Disable scroll zoom
                 'editable': False,            # Prevent accidental edits
                 'doubleClick': 'reset',       # Only resets axes, doesn't zoom
