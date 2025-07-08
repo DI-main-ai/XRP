@@ -481,7 +481,7 @@ with tab1:
             dragmode=False
         )
         st.markdown(
-            f"<div style='font-size:1.8em; font-weight:700; margin-bottom:0.2em; margin-top:2.2em'>{chart_title}</div>",
+            f"<div style='font-size:2em; font-weight:700; margin-bottom:0.2em; margin-top:2.2em'>{chart_title}</div>",
             unsafe_allow_html=True
         )
 
