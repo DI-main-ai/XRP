@@ -460,16 +460,15 @@ with tab1:
             if 'date' in col.lower():
                 date_col = col
                 break
-
-        y_label = "XRP"
-        if "wallet" in title.lower():
-            y_label = "Wallet Count"
-
+    
+        # Check if this is the wallet count chart
+        is_wallet_count = "wallet count" in title.lower() or "historic wallet count" in title.lower()
+    
         if "–" in title or "-" in title:
             st.subheader(f"Chart: {title} XRP Balance Range")
         else:
             st.subheader(f"Chart: {title}")
-
+    
         if date_col is not None and 'value' in df.columns:
             df[date_col] = pd.to_datetime(df[date_col], errors='coerce', infer_datetime_format=True).dt.date
             # Plot chart (abbreviated y-axis)
@@ -480,19 +479,18 @@ with tab1:
                 markers=True,
             )
             fig.update_traces(
-                line=dict(width=1.5),  # Thinner line
+                line=dict(width=1.5),
                 marker=dict(size=4, color='#aad8ff', line=dict(width=0)),
                 mode="lines+markers",
                 hovertemplate="<b>%{x|%b %d, %Y}</b><br>value=%{y:,}<extra></extra>",
-                # line_shape="spline"  # Uncomment for a smooth spline
             )
             fig.update_yaxes(
                 tickformat="~s",
-                title="Total XRP" if "XRP" in title.lower() else "Wallet Count"
+                title="Wallet Count" if is_wallet_count else "Total XRP"
             )
             fig.update_layout(
                 xaxis_title="Date",
-                hovermode="x",  # or "x unified" for a big box
+                hovermode="x",
                 xaxis=dict(showspikes=True, spikemode='across', spikethickness=2),
                 hoverlabel=dict(namelength=-1),
                 plot_bgcolor='#1e222d',
@@ -500,14 +498,16 @@ with tab1:
                 font=dict(color='#F1F1F1'),
                 dragmode=False
             )
-            
             st.plotly_chart(fig, use_container_width=True, config={
-                'displayModeBar': False,      # Hides all tools!
-                'staticPlot': False,          # Still interactive hover!
-                'scrollZoom': False,          # Disable scroll zoom
-                'editable': False,            # Prevent accidental edits
-                'doubleClick': 'reset',       # Only resets axes, doesn't zoom
+                'displayModeBar': False,
+                'staticPlot': False,
+                'scrollZoom': False,
+                'editable': False,
+                'doubleClick': 'reset',
             })
+    
+            # Data Table code unchanged...
+
 
 
 
