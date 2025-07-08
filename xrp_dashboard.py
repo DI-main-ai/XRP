@@ -479,14 +479,16 @@ with tab1:
                 y='value',
                 markers=True,
             )
-            fig.update_traces(line=dict(width=3))
-            fig.update_yaxes(
-                tickformat="~s",  # Y-axis stays abbreviated (M, K, etc.)
-                title="Total XRP" if "xrp" in title.lower() else "Wallet Count"
-            )
-            # --- Show full value in hover ---
             fig.update_traces(
-                hovertemplate="<b>%{x|%b %d, %Y}</b><br>value=%{y:,}<extra></extra>"
+                line=dict(width=2),  # Thinner line
+                marker=dict(size=7, color='#aad8ff'),
+                mode="lines+markers",
+                hovertemplate="<b>%{x|%b %d, %Y}</b><br>value=%{y:,}<extra></extra>",
+                # line_shape="spline"  # Uncomment for a smooth spline
+            )
+            fig.update_yaxes(
+                tickformat="~s",
+                title="Total XRP" if "xrp" in title.lower() else "Wallet Count"
             )
             fig.update_layout(
                 xaxis_title="Date",
@@ -495,8 +497,14 @@ with tab1:
                 plot_bgcolor='#1e222d',
                 paper_bgcolor='#1e222d',
                 font=dict(color='#F1F1F1'),
+                dragmode='pan',
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True, config={
+                'displayModeBar': True,
+                'displaylogo': False,
+                'scrollZoom': False,  # disables zoom with scroll or touch
+                'modeBarButtonsToRemove': ['zoom2d', 'select2d', 'lasso2d', 'autoScale2d', 'resetScale2d']
+            })
 
             # Data Table below chart
             df_display = df.copy()
