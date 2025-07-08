@@ -492,23 +492,23 @@ with tab1:
             )
             fig.update_layout(
                 xaxis_title="Date",
-                hovermode="x",
+                hovermode="x",  # or "x unified" for a big box
                 xaxis=dict(showspikes=True, spikemode='across', spikethickness=2),
                 hoverlabel=dict(namelength=-1),
                 plot_bgcolor='#1e222d',
                 paper_bgcolor='#1e222d',
                 font=dict(color='#F1F1F1'),
-                dragmode='zoom'   # This disables panning
+                # dragmode not set at all!
             )
+            
             st.plotly_chart(fig, use_container_width=True, config={
-                'displayModeBar': False,
-                'doubleClick': 'reset',
-                'staticPlot': False,
-                'scrollZoom': False,
-                'modeBarButtonsToRemove': [
-                    'zoom2d', 'pan2d', 'select2d', 'lasso2d', 'autoScale2d', 'resetScale2d'
-                ]
+                'displayModeBar': False,      # Hides all tools!
+                'staticPlot': False,          # Still interactive hover!
+                'scrollZoom': False,          # Disable scroll zoom
+                'editable': False,            # Prevent accidental edits
+                'doubleClick': 'reset',       # Only resets axes, doesn't zoom
             })
+
 
 
             # Data Table below chart
