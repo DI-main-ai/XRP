@@ -288,6 +288,9 @@ def calc_and_display_delta_table(
         mime='text/csv',
     )
 
+import pandas as pd
+import os
+
 with tab2:
     st.header("Current XRP Ledger Statistics")
 
@@ -339,16 +342,73 @@ with tab2:
         st.caption("Sum of all XRP wallets holding at least 1,000,000 XRP or 100,000 XRP. Shows daily totals and change from the previous day.")
         st.dataframe(display_summary, use_container_width=True)
 
+    # ---- Helper: Show table with robust day-over-day comparison ----
+    def robust_delta_table(
+        df, id_col, delta_cols, normalize_key_func, table_name, int_delta_cols=None
+    ):
+        # Sort by date, select latest date and closest previous date
+        df = df.copy()
+        df['date'] = pd.to_datetime(df['date'])
+        latest_date = df['date'].max()
+        prev_dates = df[df['date'] < latest_date]['date'].unique()
+        prev_date = prev_dates[-1] if len(prev_dates) > 0 else None
+
+        today_df = df[df['date'] == latest_date].copy()
+        today_df['MergeKey'] = today_df[id_col].apply(normalize_key_func)
+
+        if prev_date is not None:
+            prev_df = df[df['date'] == prev_date].copy()
+            prev_df['MergeKey'] = prev_df[id_col].apply(normalize_key_func)
+            merged = pd.merge(
+                today_df,
+                prev_df[['MergeKey'] + delta_cols],
+                on='MergeKey',
+                how='left',
+                suffixes=('', '_prev')
+            )
+            # Calculate deltas
+            for col in delta_cols:
+                try:
+                    merged[f'{col} Δ'] = pd.to_numeric(merged[col], errors='coerce') - pd.to_numeric(merged[f'{col}_prev'], errors='coerce')
+                    if int_delta_cols and col in int_delta_cols:
+                        merged[f'{col} Δ'] = merged[f'{col} Δ'].fillna(0).astype(int)
+                except Exception as e:
+                    merged[f'{col} Δ'] = None
+            # Format numbers with commas
+            for col in delta_cols + [f'{c} Δ' for c in delta_cols]:
+                merged[col] = pd.to_numeric(merged[col], errors='coerce')
+                if merged[col].notna().all():
+                    if col in int_delta_cols or (col.endswith('Δ') and col.replace(' Δ', '') in int_delta_cols):
+                        merged[col] = merged[col].map('{:,}'.format)
+                    else:
+                        merged[col] = merged[col].map(lambda x: f"{x:,.10g}" if pd.notnull(x) else "")
+            # Display only today's data, drop merge key and prev cols
+            keep_cols = [id_col] + delta_cols + [f"{c} Δ" for c in delta_cols]
+            st.markdown(f"#### {table_name}")
+            st.caption(f"Date: {latest_date.date()}")
+            st.dataframe(merged[keep_cols], use_container_width=True)
+        else:
+            # Only today's data, no deltas
+            for col in delta_cols:
+                today_df[col] = pd.to_numeric(today_df[col], errors='coerce')
+                if int_delta_cols and col in int_delta_cols:
+                    today_df[col] = today_df[col].map('{:,}'.format)
+                else:
+                    today_df[col] = today_df[col].map(lambda x: f"{x:,.10g}" if pd.notnull(x) else "")
+            st.markdown(f"#### {table_name}")
+            st.caption(f"Date: {latest_date.date()}")
+            st.dataframe(today_df[[id_col] + delta_cols], use_container_width=True)
+
     # Table 1: Number Of Accounts And Sum Of Balance Range
     if os.path.exists(ACCOUNTS_CSV):
         df = pd.read_csv(ACCOUNTS_CSV)
         try:
-            calc_and_display_delta_table(
+            robust_delta_table(
                 df,
                 id_col="Balance Range (XRP)",
                 delta_cols=["Accounts", "Sum in Range (XRP)"],
-                table_name="Number Of Accounts And Sum Of Balance Range",
                 normalize_key_func=normalize_balance_range,
+                table_name="Number Of Accounts And Sum Of Balance Range",
                 int_delta_cols=["Accounts"]
             )
         except Exception as e:
@@ -360,18 +420,19 @@ with tab2:
     if os.path.exists(PERCENT_CSV):
         df = pd.read_csv(PERCENT_CSV)
         try:
-            calc_and_display_delta_table(
+            robust_delta_table(
                 df,
                 id_col="Threshold (%)",
                 delta_cols=["Accounts ≥ Threshold", "XRP ≥ Threshold"],
-                table_name="Percentage Of Accounts With Balances Greater Than Or Equal To",
                 normalize_key_func=normalize_threshold,
+                table_name="Percentage Of Accounts With Balances Greater Than Or Equal To",
                 int_delta_cols=["Accounts ≥ Threshold"]
             )
         except Exception as e:
             st.error(f"Table 2 error: {e}")
     else:
         st.info("current_stats_percent_history.csv not found.")
+
 
 
 
