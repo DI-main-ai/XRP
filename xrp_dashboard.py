@@ -498,6 +498,7 @@ with tab1:
                 font=dict(color='#F1F1F1'),
                 dragmode=False
             )
+            fig.layout.yaxis.title.text = "Wallet Count" if is_wallet_count else "Total XRP"
             st.plotly_chart(fig, use_container_width=True, config={
                 'displayModeBar': False,
                 'staticPlot': False,
