@@ -263,17 +263,20 @@ def calc_and_display_delta_table(
             how="left",
             suffixes=('', '_prev')
         )
+        # In delta formatting for Δ columns:
         for col in delta_cols:
             col_pretty = pretty_map.get(col, col)
             col_prev = f"{col_pretty}_prev"
             if col_pretty in merged.columns and col_prev in merged.columns:
                 delta = merged[col_pretty].apply(clean_numeric) - merged[col_prev].apply(clean_numeric)
-                if col_pretty in int_delta_cols:
-                    merged[f"{col_pretty} Δ"] = delta.apply(lambda v: f"{int(v):+d}" if pd.notnull(v) else "")
+                # If it's a threshold column, use int formatting (no .0)
+                if col_pretty in int_delta_cols or "XRP" in col_pretty:
+                    merged[f"{col_pretty} Δ"] = delta.apply(lambda v: f"{int(round(v)):+d}" if pd.notnull(v) else "")
                 else:
                     merged[f"{col_pretty} Δ"] = delta.apply(lambda v: f"{v:+,}" if pd.notnull(v) else "")
             else:
                 merged[f"{col_pretty} Δ"] = ""
+
         keep = [c for c in merged.columns if not c.endswith("_prev") and c != "MergeKey"]
         today_df = merged[keep]
 
@@ -391,7 +394,14 @@ with tab2:
         df = pd.read_csv(PERCENT_CSV)
         try:
             df["Accounts ≥ Threshold"] = pd.to_numeric(df["Accounts ≥ Threshold"].astype(str).str.replace(',', ''), errors='coerce').fillna(0).astype(int)
-            df["XRP ≥ Threshold"] = pd.to_numeric(df["XRP ≥ Threshold"].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
+            df["XRP ≥ Threshold"] = (
+                df["XRP ≥ Threshold"]
+                .astype(str)
+                .str.replace(',', '', regex=False)
+                .str.replace('XRP', '', regex=False)
+                .str.replace(' ', '', regex=False)
+                .astype(float)
+            )
 
             calc_and_display_delta_table(
                 df,
