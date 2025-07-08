@@ -501,7 +501,11 @@ with tab1:
             font=dict(color='#F1F1F1'),
             dragmode=False
         )
-        st.markdown(f"### {chart_title}")
+        st.markdown(
+            f"<div style='font-size:1.8em; font-weight:700; margin-bottom:0.2em; margin-top:2.2em'>{chart_title}</div>",
+            unsafe_allow_html=True
+        )
+
         st.plotly_chart(fig, use_container_width=True, config={
             'displayModeBar': False,
             'staticPlot': False,
@@ -526,6 +530,7 @@ with tab1:
             file_name=csv_file,
             mime='text/csv',
         )
+        st.markdown("&nbsp;"*3, unsafe_allow_html=True)  # 3 line breaks
     
         st.caption("Click or Touch any Point on the Chart to see its Hoverbox Value. Tap either Axis to reset Hoverbox")
     
