@@ -498,12 +498,12 @@ with tab1:
                 plot_bgcolor='#1e222d',
                 paper_bgcolor='#1e222d',
                 font=dict(color='#F1F1F1'),
-                dragmode='pan'
+                dragmode='False'
             )
             
             st.plotly_chart(fig, use_container_width=True, config={
                 'displayModeBar': False,      # Hides all tools!
-                'staticPlot': True,          # Still interactive hover!
+                'staticPlot': False,          # Still interactive hover!
                 'scrollZoom': False,          # Disable scroll zoom
                 'editable': False,            # Prevent accidental edits
                 'doubleClick': 'reset',       # Only resets axes, doesn't zoom
