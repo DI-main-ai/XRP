@@ -477,8 +477,12 @@ with tab1:
             )
             fig.update_traces(line=dict(width=3))
             fig.update_yaxes(
-                tickformat="~s",  # Abbreviated y-axis: 1.2M, 53K, etc.
+                tickformat="~s",  # Y-axis stays abbreviated (M, K, etc.)
                 title="Total XRP" if "xrp" in title.lower() else "Wallet Count"
+            )
+            # --- Show full value in hover ---
+            fig.update_traces(
+                hovertemplate="<b>%{x|%b %d, %Y}</b><br>value=%{y:,}<extra></extra>"
             )
             fig.update_layout(
                 xaxis_title="Date",
