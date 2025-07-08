@@ -9,16 +9,17 @@ from datetime import datetime
 st.set_page_config(page_title="XRP Rich List Dashboard", initial_sidebar_state="collapsed", layout="centered")
 st.markdown("""
     <style>
-    /* Remove Streamlit's default purple background on markdown divs (like your chart titles) */
-    div[data-testid="stMarkdownContainer"] > div {
+    /* Remove Streamlit's default purple section highlight on markdown headings */
+    section [data-testid="stMarkdownContainer"] {
         background: none !important;
         box-shadow: none !important;
-        padding: 0 !important;
-        margin-bottom: 0.5em !important;
-    }    
-    html, body, [data-testid="stAppViewContainer"] {
-        background-color: #1e222d !important;
-        color: #F1F1F1 !important;
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+        margin-bottom: 0.4em !important;
+    }
+    /* Also remove purple from top-level section containers (Streamlit's stContainer) */
+    section[tabindex="0"] {
+        background: none !important;
     }
     .stApp { background-color: #1e222d !important; }
     .stDataFrame, .stTable, .stMarkdown, .stCaption, .css-1n76uvr {
