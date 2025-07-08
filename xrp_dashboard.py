@@ -269,13 +269,16 @@ def calc_and_display_delta_table(
             col_prev = f"{col_pretty}_prev"
             if col_pretty in merged.columns and col_prev in merged.columns:
                 delta = merged[col_pretty].apply(clean_numeric) - merged[col_prev].apply(clean_numeric)
-                # If it's a threshold column, use int formatting (no .0)
-                if col_pretty in int_delta_cols or "XRP" in col_pretty:
-                    merged[f"{col_pretty} Δ"] = delta.apply(lambda v: f"{int(round(v)):+d}" if pd.notnull(v) else "")
+                # Better: Custom formatting for each type
+                if col_pretty in int_delta_cols:
+                    merged[f"{col_pretty} Δ"] = delta.apply(lambda v: f"{int(round(v)):+,d}" if pd.notnull(v) else "")
+                elif "XRP" in col_pretty:
+                    merged[f"{col_pretty} Δ"] = delta.apply(lambda v: f"{v:+,.4f}".rstrip('0').rstrip('.') + " XRP" if pd.notnull(v) else "")
                 else:
                     merged[f"{col_pretty} Δ"] = delta.apply(lambda v: f"{v:+,}" if pd.notnull(v) else "")
             else:
                 merged[f"{col_pretty} Δ"] = ""
+
 
         keep = [c for c in merged.columns if not c.endswith("_prev") and c != "MergeKey"]
         today_df = merged[keep]
