@@ -333,11 +333,11 @@ with tab2:
         display_summary = summary.copy()
         for col in ['Wallets ≥ 1M XRP', 'Wallets ≥ 100K XRP', 'Δ vs Prior Day (1M+)', 'Δ vs Prior Day (100K+)']:
             display_summary[col] = display_summary[col].map('{:,}'.format)
+        display_summary = display_summary.sort_values('Date', ascending=False).reset_index(drop=True)
 
         st.markdown("### 🦈 Whale Wallet Count Summary (by Day)")
         st.caption("Sum of all XRP wallets holding at least 1,000,000 XRP or 100,000 XRP. Shows daily totals and change from the previous day.")
         st.dataframe(display_summary, use_container_width=True)
-    # ---- END Whale Wallet Summary ----
 
     # Table 1: Number Of Accounts And Sum Of Balance Range
     if os.path.exists(ACCOUNTS_CSV):
