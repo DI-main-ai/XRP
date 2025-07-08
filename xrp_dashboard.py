@@ -505,7 +505,7 @@ with tab1:
                 'doubleClick': 'reset',  # disables zoom on double tap (will only reset axes instead)
                 'staticPlot': False,     # if you set True, disables all pan/zoom, but also disables hover!
                 'scrollZoom': False,  # disables zoom with scroll or touch
-                'modeBarButtonsToRemove': ['zoom2d', 'pan2d', 'select2d', 'lasso2d', 'autoScale2d', 'resetScale2d']
+                'modeBarButtonsToRemove': ['zoom2d', 'select2d', 'lasso2d', 'autoScale2d', 'resetScale2d']
             })
 
             # Data Table below chart
