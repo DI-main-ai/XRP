@@ -6,7 +6,7 @@ import re
 from datetime import datetime
 
 # ----- DARK THEME INJECT -----
-st.set_page_config(page_title="XRP Rich List Dashboard", initial_sidebar_state="collapsed", layout="wide")
+st.set_page_config(page_title="XRP Rich List Dashboard", initial_sidebar_state="collapsed", layout="centered")
 st.markdown("""
     <style>
     html, body, [data-testid="stAppViewContainer"] {
