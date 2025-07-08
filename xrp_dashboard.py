@@ -9,17 +9,23 @@ from datetime import datetime
 st.set_page_config(page_title="XRP Rich List Dashboard", initial_sidebar_state="collapsed", layout="centered")
 st.markdown("""
     <style>
-    /* Remove Streamlit's default purple section highlight on markdown headings */
-    section [data-testid="stMarkdownContainer"] {
+    /* Remove purple section highlight around st.markdown custom titles */
+    section[data-testid="stBlock"] > div[data-testid="stVerticalBlock"] > section[style*="background"] {
         background: none !important;
         box-shadow: none !important;
-        padding-top: 0 !important;
-        padding-bottom: 0 !important;
-        margin-bottom: 0.4em !important;
+        padding: 0 !important;
     }
-    /* Also remove purple from top-level section containers (Streamlit's stContainer) */
-    section[tabindex="0"] {
-        background: none !important;
+    /* Remove margin from custom chart title divs */
+    div[data-testid="stMarkdownContainer"] > div {
+        margin-bottom: 0.5em !important;
+        margin-top: 2.2em !important;
+        padding: 0 !important;
+    }
+
+    /* --- Your custom dark theme styles below --- */
+    html, body, [data-testid="stAppViewContainer"] {
+        background-color: #1e222d !important;
+        color: #F1F1F1 !important;
     }
     .stApp { background-color: #1e222d !important; }
     .stDataFrame, .stTable, .stMarkdown, .stCaption, .css-1n76uvr {
@@ -66,6 +72,7 @@ st.markdown("""
     ::-webkit-scrollbar-thumb { background: #37374f; border-radius: 4px;}
     </style>
     """, unsafe_allow_html=True)
+
 
 st.title("📊 XRP Rich List Interactive Dashboard")
 def normalize_balance_range(x):
