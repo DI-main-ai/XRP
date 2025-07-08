@@ -293,7 +293,47 @@ with tab2:
 
     ACCOUNTS_CSV = "csv/current_stats_accounts_history.csv"
     PERCENT_CSV  = "csv/current_stats_percent_history.csv"
+    if os.path.exists(ACCOUNTS_CSV):
+    df = pd.read_csv(ACCOUNTS_CSV)
+    # Make sure date is string (if not already)
+    df["date"] = df["date"].astype(str)
+    # Only keep columns we care about
+    df = df[["date", "Balance Range (XRP)", "Accounts"]]
+    df["Accounts"] = pd.to_numeric(df["Accounts"].astype(str).str.replace(',', ''), errors='coerce').fillna(0).astype(int)
 
+    # Prepare output per day
+    results = []
+    for date, group in df.groupby("date"):
+        # Sort group by balance range descending (so top is 1M+)
+        group = group.copy()
+        # Parse min balance from "Balance Range (XRP)"
+        def min_xrp(s):
+            try:
+                # e.g. "1,000,000,000 - Infinity" or "500,000,000 - 1,000,000,000"
+                return float(s.split('-')[0].replace(',', '').strip())
+            except Exception:
+                return np.nan
+        group["min_xrp"] = group["Balance Range (XRP)"].map(min_xrp)
+        # Get wallets >= 1M (top 7 rows)
+        wallets_1m = group[group["min_xrp"] >= 1_000_000]["Accounts"].sum()
+        # Get wallets >= 100k (min_xrp >= 100_000)
+        wallets_100k = group[group["min_xrp"] >= 100_000]["Accounts"].sum()
+        results.append({"Date": date, "Wallets ≥ 1M XRP": wallets_1m, "Wallets ≥ 100K XRP": wallets_100k})
+
+    # Make results DataFrame and sort by date
+    whale_df = pd.DataFrame(results).sort_values("Date").reset_index(drop=True)
+    # Calculate changes
+    whale_df["Δ vs Prior Day (1M+)"] = whale_df["Wallets ≥ 1M XRP"].diff().fillna(0).astype(int)
+    whale_df["Δ vs Prior Day (100K+)"] = whale_df["Wallets ≥ 100K XRP"].diff().fillna(0).astype(int)
+
+    # Format numbers with commas for display (keep numbers for chart, but show as string with commas)
+    whale_display = whale_df.copy()
+    for col in ["Wallets ≥ 1M XRP", "Wallets ≥ 100K XRP", "Δ vs Prior Day (1M+)", "Δ vs Prior Day (100K+)"]:
+        whale_display[col] = whale_display[col].map('{:,}'.format)
+
+    st.markdown("### 🐋 Whale Wallet Count Summary (by Day)")
+    st.caption("Sum of all XRP wallets holding at least 1,000,000 XRP or 100,000 XRP. Shows daily totals and change from the previous day.")
+    st.dataframe(whale_display, use_container_width=True)
     # ---- Whale Wallet Summary Table at Top ----
     if os.path.exists(ACCOUNTS_CSV):
         df = pd.read_csv(ACCOUNTS_CSV)
