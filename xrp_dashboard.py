@@ -462,7 +462,10 @@ with tab1:
                 break
     
         # Check if this is the wallet count chart
-        is_wallet_count = "historic_wallet_count" in csv_file.lower()
+        def normalize_filename(s):
+            return s.lower().replace('_', ' ').replace('-', ' ').strip()
+
+        is_wallet_count = "historic wallet count" in normalize_filename(csv_file)
         yaxis_label = "Wallet Count" if is_wallet_count else "Total XRP"
         if "–" in title or "-" in title:
             st.subheader(f"Chart: {title} XRP Balance Range")
