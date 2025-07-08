@@ -498,15 +498,18 @@ with tab1:
                 plot_bgcolor='#1e222d',
                 paper_bgcolor='#1e222d',
                 font=dict(color='#F1F1F1'),
-                dragmode='select'
+                dragmode='zoom'   # This disables panning
             )
             st.plotly_chart(fig, use_container_width=True, config={
                 'displayModeBar': False,
-                'doubleClick': 'reset',  # disables zoom on double tap (will only reset axes instead)
-                'staticPlot': False,     # if you set True, disables all pan/zoom, but also disables hover!
-                'scrollZoom': False,  # disables zoom with scroll or touch
-                'modeBarButtonsToRemove': ['zoom2d', 'select2d', 'lasso2d', 'autoScale2d', 'resetScale2d']
+                'doubleClick': 'reset',
+                'staticPlot': False,
+                'scrollZoom': False,
+                'modeBarButtonsToRemove': [
+                    'zoom2d', 'pan2d', 'select2d', 'lasso2d', 'autoScale2d', 'resetScale2d'
+                ]
             })
+
 
             # Data Table below chart
             df_display = df.copy()
