@@ -488,7 +488,7 @@ with tab1:
             )
             fig.update_yaxes(
                 tickformat="~s",
-                title="Total XRP" if "xrp" in title.lower() else "Wallet Count"
+                title="Total XRP" if "XRP" in title.lower() else "Wallet Count"
             )
             fig.update_layout(
                 xaxis_title="Date",
