@@ -207,7 +207,7 @@ def normalize_threshold(val):
         return None
 
 def calc_and_display_delta_table(
-    df, id_col, delta_cols, table_name, date_col="date", normalize_key_func=None, int_delta_cols=[]
+    df, id_col, delta_cols, table_name, date_col="date", normalize_key_func=None, int_delta_cols=[], return_dataframe=False
 ):
     df[date_col] = pd.to_datetime(df[date_col], errors='coerce', infer_datetime_format=True)
     if df[date_col].isnull().any():
@@ -222,7 +222,14 @@ def calc_and_display_delta_table(
     )
 
     today_df = df[df[date_col].dt.date == sel_date].copy()
-    yest_df = df[df[date_col].dt.date == (sel_date - pd.Timedelta(days=1))].copy()
+    # --- CHANGED: find closest earlier date for yest_df, not just "yesterday"
+    earlier_dates = [d for d in dates_available if d < sel_date]
+    yest_df = pd.DataFrame()
+    prior_date = None
+    if earlier_dates:
+        prior_date = max(earlier_dates)
+        yest_df = df[df[date_col].dt.date == prior_date].copy()
+    # --- END CHANGE
 
     today_df = today_df.drop_duplicates(subset=[id_col])
     yest_df = yest_df.drop_duplicates(subset=[id_col])
@@ -250,6 +257,7 @@ def calc_and_display_delta_table(
     else:
         merge_id = id_col_pretty
 
+    # --- CHANGED: Fixes for delta & missing XRP ≥ Threshold ---
     if show_delta and not yest_df.empty:
         merged = today_df.merge(
             yest_df,
@@ -271,15 +279,32 @@ def calc_and_display_delta_table(
         keep = [c for c in merged.columns if not c.endswith("_prev") and c != "MergeKey"]
         today_df = merged[keep]
 
-    # Formatting
+    # --- FORMATTING ---
+
+    # Patch: Always ensure columns are numeric before formatting
+    for c in today_df.columns:
+        if "Accounts" in c or "Sum in Range" in c or "XRP" in c:
+            today_df[c] = today_df[c].apply(clean_numeric)
+
     for c in today_df.columns:
         if "Δ" in c or "Delta" in c:
             continue # already formatted
         elif "Accounts" in c or "Sum" in c or "XRP" in c:
             today_df[c] = today_df[c].apply(format_int)
 
+    # For "Sum in Range (XRP)" and "XRP ≥ Threshold" columns, NEVER show exponential notation
+    for col in today_df.columns:
+        if "Sum in Range (XRP)" in col or "XRP ≥ Threshold" in col:
+            today_df[col] = today_df[col].apply(lambda x: f"{int(x):,}" if (isinstance(x, (float, int)) and x == int(x)) else format_int(x))
+
+    # --- END PATCH ---
+
+    # Show table
     st.subheader(table_name)
-    st.markdown(f"<span style='color:#aaa;'>Date: {sel_date}</span>", unsafe_allow_html=True)
+    if prior_date and show_delta and not yest_df.empty:
+        st.markdown(f"<span style='color:#aaa;'>Date: {sel_date} (compared to {prior_date})</span>", unsafe_allow_html=True)
+    else:
+        st.markdown(f"<span style='color:#aaa;'>Date: {sel_date}</span>", unsafe_allow_html=True)
     st.dataframe(today_df.drop(columns=[date_col]), use_container_width=True, hide_index=True)
     st.download_button(
         label=f"Download {table_name}",
@@ -287,12 +312,23 @@ def calc_and_display_delta_table(
         file_name=f"{table_name.replace(' ', '_')}_{sel_date}.csv",
         mime='text/csv',
     )
+    if return_dataframe:
+        return today_df
+    return None
 
-import pandas as pd
-import os
-
-import pandas as pd
-import os
+def format_number(x):
+    # Format number with commas, no exponentials, keep 2 decimals if needed
+    try:
+        x = float(x)
+        if abs(x) < 1e3:
+            return f"{x:,.0f}"
+        if abs(x) < 1:
+            return f"{x:.6f}"
+        if abs(x) % 1 == 0:
+            return f"{int(x):,}"
+        return f"{x:,.2f}"
+    except Exception:
+        return x
 
 with tab2:
     st.header("Current XRP Ledger Statistics")
@@ -303,6 +339,7 @@ with tab2:
     # ---- Whale Wallet Summary Table at Top ----
     if os.path.exists(ACCOUNTS_CSV):
         df = pd.read_csv(ACCOUNTS_CSV)
+
         df["date"] = pd.to_datetime(df["date"])
         df = df.sort_values("date").reset_index(drop=True)
 
@@ -330,90 +367,44 @@ with tab2:
         summary['Δ vs Prior Day (1M+)'] = summary['Wallets ≥ 1M XRP'].diff().fillna(0).astype(int)
         summary['Δ vs Prior Day (100K+)'] = summary['Wallets ≥ 100K XRP'].diff().fillna(0).astype(int)
 
+        # Format for display
         display_summary = summary.copy()
         for col in ['Wallets ≥ 1M XRP', 'Wallets ≥ 100K XRP', 'Δ vs Prior Day (1M+)', 'Δ vs Prior Day (100K+)']:
-            display_summary[col] = display_summary[col].map('{:,}'.format)
+            display_summary[col] = display_summary[col].map(format_number)
         display_summary = display_summary.sort_values('Date', ascending=False).reset_index(drop=True)
 
         st.markdown("### 🦈 Whale Wallet Count Summary (by Day)")
         st.caption("Sum of all XRP wallets holding at least 1,000,000 XRP or 100,000 XRP. Shows daily totals and change from the previous day.")
         st.dataframe(display_summary, use_container_width=True)
 
-    # ---- Robust delta table with dropdown ----
-    def robust_delta_table_with_dropdown(
-        df, id_col, delta_cols, normalize_key_func, table_name, int_delta_cols=None
-    ):
-        df = df.copy()
-        df['date'] = pd.to_datetime(df['date'])
-        available_dates = sorted(df['date'].unique())
-        if not available_dates:
-            st.warning("No data available.")
-            return
-        latest_date = available_dates[-1]
-
-        # Dropdown for date selection
-        selected_date = st.selectbox(
-            f"Select Date for {table_name}:",
-            [d.date() for d in reversed(available_dates)],
-            key=f"dropdown_{table_name}"
-        )
-        selected_date = pd.to_datetime(selected_date)
-
-        prev_dates = [d for d in available_dates if d < selected_date]
-        prev_date = prev_dates[-1] if prev_dates else None
-
-        today_df = df[df['date'] == selected_date].copy()
-        today_df['MergeKey'] = today_df[id_col].apply(normalize_key_func)
-
-        if prev_date is not None:
-            prev_df = df[df['date'] == prev_date].copy()
-            prev_df['MergeKey'] = prev_df[id_col].apply(normalize_key_func)
-            merged = pd.merge(
-                today_df,
-                prev_df[['MergeKey'] + delta_cols],
-                on='MergeKey',
-                how='left',
-                suffixes=('', '_prev')
-            )
-            for col in delta_cols:
-                try:
-                    merged[f'{col} Δ'] = pd.to_numeric(merged[col], errors='coerce') - pd.to_numeric(merged[f'{col}_prev'], errors='coerce')
-                    if int_delta_cols and col in int_delta_cols:
-                        merged[f'{col} Δ'] = merged[f'{col} Δ'].fillna(0).astype(int)
-                except Exception as e:
-                    merged[f'{col} Δ'] = None
-            for col in delta_cols + [f'{c} Δ' for c in delta_cols]:
-                merged[col] = pd.to_numeric(merged[col], errors='coerce')
-                if merged[col].notna().all():
-                    if int_delta_cols and (col in int_delta_cols or (col.endswith('Δ') and col.replace(' Δ', '') in int_delta_cols)):
-                        merged[col] = merged[col].map('{:,}'.format)
-                    else:
-                        merged[col] = merged[col].map(lambda x: f"{x:,.10g}" if pd.notnull(x) else "")
-            keep_cols = [id_col] + delta_cols + [f"{c} Δ" for c in delta_cols]
-            st.markdown(f"#### {table_name}")
-            st.caption(f"Date: {selected_date.date()} (compared to {prev_date.date()})")
-            st.dataframe(merged[keep_cols], use_container_width=True)
-        else:
-            for col in delta_cols:
-                today_df[col] = pd.to_numeric(today_df[col], errors='coerce')
-                if int_delta_cols and col in int_delta_cols:
-                    today_df[col] = today_df[col].map('{:,}'.format)
-                else:
-                    today_df[col] = today_df[col].map(lambda x: f"{x:,.10g}" if pd.notnull(x) else "")
-            st.markdown(f"#### {table_name}")
-            st.caption(f"Date: {selected_date.date()}")
-            st.dataframe(today_df[[id_col] + delta_cols], use_container_width=True)
-
-    # Table 1: Number Of Accounts And Sum Of Balance Range
+    # ---- Table 1: Number Of Accounts And Sum Of Balance Range ----
     if os.path.exists(ACCOUNTS_CSV):
         df = pd.read_csv(ACCOUNTS_CSV)
         try:
-            robust_delta_table_with_dropdown(
+            # Ensure proper numeric types and formatting for both main & delta columns
+            df["Sum in Range (XRP)"] = pd.to_numeric(df["Sum in Range (XRP)"].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
+            df["Accounts"] = pd.to_numeric(df["Accounts"].astype(str).str.replace(',', ''), errors='coerce').fillna(0).astype(int)
+
+            def my_display_delta_table(*args, **kwargs):
+                # Call your existing function but post-format the dataframe if returned
+                result = calc_and_display_delta_table(*args, **kwargs, return_dataframe=True)
+                if result is not None:
+                    # Format values
+                    for col in ["Sum in Range (XRP)", "Sum in Range (XRP) Δ"]:
+                        if col in result.columns:
+                            result[col] = result[col].map(format_number)
+                    for col in ["Accounts", "Accounts Δ"]:
+                        if col in result.columns:
+                            result[col] = result[col].map(format_number)
+                    st.dataframe(result, use_container_width=True)
+                # If your function already displays, you can just apply formatting in the function
+
+            my_display_delta_table(
                 df,
                 id_col="Balance Range (XRP)",
                 delta_cols=["Accounts", "Sum in Range (XRP)"],
-                normalize_key_func=normalize_balance_range,
                 table_name="Number Of Accounts And Sum Of Balance Range",
+                normalize_key_func=normalize_balance_range,
                 int_delta_cols=["Accounts"]
             )
         except Exception as e:
@@ -421,22 +412,39 @@ with tab2:
     else:
         st.info("current_stats_accounts_history.csv not found.")
 
-    # Table 2: Percentage Of Accounts With Balances Greater Than Or Equal To
+    # ---- Table 2: Percentage Of Accounts With Balances Greater Than Or Equal To ----
     if os.path.exists(PERCENT_CSV):
         df = pd.read_csv(PERCENT_CSV)
         try:
-            robust_delta_table_with_dropdown(
+            # Ensure proper numeric types for all relevant columns
+            df["Accounts ≥ Threshold"] = pd.to_numeric(df["Accounts ≥ Threshold"].astype(str).str.replace(',', ''), errors='coerce').fillna(0).astype(int)
+            df["XRP ≥ Threshold"] = pd.to_numeric(df["XRP ≥ Threshold"].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
+
+            def my_display_percent_table(*args, **kwargs):
+                result = calc_and_display_delta_table(*args, **kwargs, return_dataframe=True)
+                if result is not None:
+                    # Format values
+                    for col in ["Accounts ≥ Threshold", "Accounts ≥ Threshold Δ"]:
+                        if col in result.columns:
+                            result[col] = result[col].map(format_number)
+                    for col in ["XRP ≥ Threshold", "XRP ≥ Threshold Δ"]:
+                        if col in result.columns:
+                            result[col] = result[col].map(format_number)
+                    st.dataframe(result, use_container_width=True)
+
+            my_display_percent_table(
                 df,
                 id_col="Threshold (%)",
                 delta_cols=["Accounts ≥ Threshold", "XRP ≥ Threshold"],
-                normalize_key_func=normalize_threshold,
                 table_name="Percentage Of Accounts With Balances Greater Than Or Equal To",
+                normalize_key_func=normalize_threshold,
                 int_delta_cols=["Accounts ≥ Threshold"]
             )
         except Exception as e:
             st.error(f"Table 2 error: {e}")
     else:
         st.info("current_stats_percent_history.csv not found.")
+
 
 
 
