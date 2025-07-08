@@ -465,7 +465,11 @@ with tab1:
         if "wallet" in title.lower():
             y_label = "Wallet Count"
 
-        st.subheader(f"Chart: {title}")
+        if "–" in title or "-" in title:
+            st.subheader(f"Chart: {title} XRP Balance Range")
+        else:
+            st.subheader(f"Chart: {title}")
+
         if date_col is not None and 'value' in df.columns:
             df[date_col] = pd.to_datetime(df[date_col], errors='coerce', infer_datetime_format=True).dt.date
             # Plot chart (abbreviated y-axis)
