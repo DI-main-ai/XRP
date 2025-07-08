@@ -462,8 +462,8 @@ with tab1:
                 break
     
         # Check if this is the wallet count chart
-        is_wallet_count = "wallet count" in title.lower() or "historic wallet count" in title.lower()
-        
+        is_wallet_count = "wallet_count" in title.lower() or "historic_wallet_count" in title.lower()
+        yaxis_label = "Wallet Count" if is_wallet_count else "Total XRP"
         if "–" in title or "-" in title:
             st.subheader(f"Chart: {title} XRP Balance Range")
         else:
@@ -472,7 +472,6 @@ with tab1:
         if date_col is not None and 'value' in df.columns:
             df[date_col] = pd.to_datetime(df[date_col], errors='coerce', infer_datetime_format=True).dt.date
             # Plot chart (abbreviated y-axis)
-            yaxis_label = "Wallet Count" if is_wallet_count else "Total XRP"
             fig = px.line(
                 df,
                 x=date_col if date_col else df.columns[0],
