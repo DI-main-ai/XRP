@@ -480,8 +480,8 @@ with tab1:
                 markers=True,
             )
             fig.update_traces(
-                line=dict(width=2),  # Thinner line
-                marker=dict(size=7, color='#aad8ff'),
+                line=dict(width=1),  # Thinner line
+                marker=dict(size=12, color='#aad8ff', line=dict(width=0)),
                 mode="lines+markers",
                 hovertemplate="<b>%{x|%b %d, %Y}</b><br>value=%{y:,}<extra></extra>",
                 # line_shape="spline"  # Uncomment for a smooth spline
@@ -502,6 +502,8 @@ with tab1:
             st.plotly_chart(fig, use_container_width=True, config={
                 'displayModeBar': True,
                 'displaylogo': False,
+                'doubleClick': 'reset',  # disables zoom on double tap (will only reset axes instead)
+                'staticPlot': False,     # if you set True, disables all pan/zoom, but also disables hover!
                 'scrollZoom': False,  # disables zoom with scroll or touch
                 'modeBarButtonsToRemove': ['zoom2d', 'select2d', 'lasso2d', 'autoScale2d', 'resetScale2d']
             })
