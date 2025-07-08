@@ -446,11 +446,14 @@ with tab1:
         key=lambda x: extract_leading_number(file_to_title[x])
     )
     ordered_csvs = non_num + num_start
-
-    if not ordered_csvs:
-        st.error("No CSV files found in this folder!")
-        st.stop()
-
+    def is_wallet_count_file(filename):
+        # Normalize for robust detection
+        s = filename.lower().replace('_', ' ').replace('-', ' ').replace('__', ' ')
+        return "historic wallet count" in s
+        if not ordered_csvs:
+            st.error("No CSV files found in this folder!")
+            st.stop()
+    
     # Loop through and display all charts!
     for csv_file in ordered_csvs:
         df = pd.read_csv(os.path.join('csv', csv_file))
@@ -460,13 +463,11 @@ with tab1:
             if 'date' in col.lower():
                 date_col = col
                 break
-    
-        # Check if this is the wallet count chart
-        def normalize_filename(s):
-            return s.lower().replace('_', ' ').replace('-', ' ').strip()
 
-        is_wallet_count = "historic wallet count" in normalize_filename(csv_file)
+        is_wallet_count = is_wallet_count_file(csv_file)
         yaxis_label = "Wallet Count" if is_wallet_count else "Total XRP"
+    
+        # Chart title formatting
         if "–" in title or "-" in title:
             st.subheader(f"Chart: {title} XRP Balance Range")
         else:
@@ -474,10 +475,10 @@ with tab1:
     
         if date_col is not None and 'value' in df.columns:
             df[date_col] = pd.to_datetime(df[date_col], errors='coerce', infer_datetime_format=True).dt.date
-            # Plot chart (abbreviated y-axis)
+    
             fig = px.line(
                 df,
-                x=date_col if date_col else df.columns[0],
+                x=date_col,
                 y='value',
                 markers=True,
                 labels={'value': yaxis_label}
@@ -486,7 +487,6 @@ with tab1:
                 tickformat="~s",
                 title_text=yaxis_label
             )
-
             fig.update_traces(
                 line=dict(width=1.5),
                 marker=dict(size=4, color='#aad8ff', line=dict(width=0)),
@@ -503,7 +503,6 @@ with tab1:
                 font=dict(color='#F1F1F1'),
                 dragmode=False
             )
-            fig.layout.yaxis.title.text = "Wallet Count" if is_wallet_count else "Total XRP"
             st.plotly_chart(fig, use_container_width=True, config={
                 'displayModeBar': False,
                 'staticPlot': False,
@@ -512,14 +511,10 @@ with tab1:
                 'doubleClick': 'reset',
             })
     
-            # Data Table code unchanged...
-
-
-
-
-            # Data Table below chart
+            # -------- Data Table below chart ----------
             df_display = df.copy()
-            if "wallet count" in title.lower():
+            # --- Use the same file check for renaming here! ---
+            if is_wallet_count:
                 df_display = df_display.rename(columns={"value": "Wallet Count"})
                 value_col = "Wallet Count"
             else:
@@ -528,7 +523,7 @@ with tab1:
             if value_col in df_display.columns:
                 df_display[value_col] = df_display[value_col].apply(format_full_number)
             df_display = df_display.sort_values(by=date_col, ascending=False).reset_index(drop=True)
-
+    
             with st.expander("Show Data Table", expanded=False):
                 st.dataframe(
                     df_display[[date_col, value_col]],
@@ -542,9 +537,9 @@ with tab1:
             )
         else:
             st.warning("No 'date' or 'value' column found! Chart x-axis may not be time-based.")
-
-        st.caption("Click or Touch any Point on the Chart to see it's Hoverbox Value. Tap either Axis to reset Hoverbox")
-
+    
+        st.caption("Click or Touch any Point on the Chart to see its Hoverbox Value. Tap either Axis to reset Hoverbox")
+    
     st.info("Scroll down to see all charts!")
 
 
