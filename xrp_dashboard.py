@@ -513,18 +513,53 @@ with tab1:
     
             # -------- Data Table below chart ----------
             df_display = df.copy()
-            # --- Use the same file check for renaming here! ---
-            if is_wallet_count:
-                df_display = df_display.rename(columns={"value": "Wallet Count"})
+            if "wallet count" in title.lower():
                 value_col = "Wallet Count"
             else:
-                df_display = df_display.rename(columns={"value": "Total XRP"})
                 value_col = "Total XRP"
-            if value_col in df_display.columns:
-                df_display[value_col] = df_display[value_col].apply(format_full_number)
+            
+            # Rename the 'value' column BEFORE plotting
+            df_plot = df.copy().rename(columns={"value": value_col})
+            
+            fig = px.line(
+                df_plot,
+                x=date_col if date_col else df_plot.columns[0],
+                y=value_col,  # <- Plot by new name!
+                markers=True,
+            )
+            fig.update_yaxes(
+                tickformat="~s",
+                title_text=value_col
+            )
+            fig.update_traces(
+                line=dict(width=1.5),
+                marker=dict(size=4, color='#aad8ff', line=dict(width=0)),
+                mode="lines+markers",
+                hovertemplate="<b>%{x|%b %d, %Y}</b><br>value=%{y:,}<extra></extra>",
+            )
+            fig.update_layout(
+                xaxis_title="Date",
+                hovermode="x",
+                xaxis=dict(showspikes=True, spikemode='across', spikethickness=2),
+                hoverlabel=dict(namelength=-1),
+                plot_bgcolor='#1e222d',
+                paper_bgcolor='#1e222d',
+                font=dict(color='#F1F1F1'),
+                dragmode=False
+            )
+            st.plotly_chart(fig, use_container_width=True, config={
+                'displayModeBar': False,
+                'staticPlot': False,
+                'scrollZoom': False,
+                'editable': False,
+                'doubleClick': 'reset',
+            })
+            
+            # Data Table as before, using value_col
+            df_display = df_display.rename(columns={"value": value_col})
+            df_display[value_col] = df_display[value_col].apply(format_full_number)
             df_display = df_display.sort_values(by=date_col, ascending=False).reset_index(drop=True)
-
-            yaxis_label = value_col 
+            
             with st.expander("Show Data Table", expanded=False):
                 st.dataframe(
                     df_display[[date_col, value_col]],
@@ -536,6 +571,7 @@ with tab1:
                 file_name=csv_file,
                 mime='text/csv',
             )
+
         else:
             st.warning("No 'date' or 'value' column found! Chart x-axis may not be time-based.")
     
