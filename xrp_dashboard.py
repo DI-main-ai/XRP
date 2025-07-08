@@ -481,7 +481,7 @@ with tab1:
             dragmode=False
         )
         st.markdown(
-            f"<div style='font-size:2em; font-weight:700; margin-bottom:0.2em; margin-top:2.2em'>{chart_title}</div>",
+            f"<div style='font-size:2em; font-weight:700; margin-bottom:0.2em; margin-top:2.2em; text-align:center'>{chart_title}</div>",
             unsafe_allow_html=True
         )
 
@@ -509,7 +509,7 @@ with tab1:
             file_name=csv_file,
             mime='text/csv',
         )
-        st.markdown("&nbsp;"*3, unsafe_allow_html=True)  # 3 line breaks
+        st.markdown("&nbsp;"*5, unsafe_allow_html=True)  # 3 line breaks
     
         st.caption("Click or Touch any Point on the Chart to see its Hoverbox Value. Tap either Axis to reset Hoverbox")
     
