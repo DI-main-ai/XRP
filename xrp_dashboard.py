@@ -492,7 +492,8 @@ with tab1:
             )
             fig.update_layout(
                 xaxis_title="Date",
-                hovermode="x unified",
+                hovermode="x",
+                xaxis=dict(showspikes=True, spikemode='across', spikethickness=2),
                 hoverlabel=dict(namelength=-1),
                 plot_bgcolor='#1e222d',
                 paper_bgcolor='#1e222d',
@@ -500,12 +501,11 @@ with tab1:
                 dragmode='pan',
             )
             st.plotly_chart(fig, use_container_width=True, config={
-                'displayModeBar': True,
-                'displaylogo': False,
+                'displayModeBar': False,
                 'doubleClick': 'reset',  # disables zoom on double tap (will only reset axes instead)
                 'staticPlot': False,     # if you set True, disables all pan/zoom, but also disables hover!
                 'scrollZoom': False,  # disables zoom with scroll or touch
-                'modeBarButtonsToRemove': ['zoom2d', 'select2d', 'lasso2d', 'autoScale2d', 'resetScale2d']
+                'modeBarButtonsToRemove': ['zoom2d', 'pan2d', 'select2d', 'lasso2d', 'autoScale2d', 'resetScale2d']
             })
 
             # Data Table below chart
