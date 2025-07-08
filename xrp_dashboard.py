@@ -291,6 +291,9 @@ def calc_and_display_delta_table(
 import pandas as pd
 import os
 
+import pandas as pd
+import os
+
 with tab2:
     st.header("Current XRP Ledger Statistics")
 
@@ -300,12 +303,9 @@ with tab2:
     # ---- Whale Wallet Summary Table at Top ----
     if os.path.exists(ACCOUNTS_CSV):
         df = pd.read_csv(ACCOUNTS_CSV)
-
-        # Ensure correct types and sorting
         df["date"] = pd.to_datetime(df["date"])
         df = df.sort_values("date").reset_index(drop=True)
 
-        # Helper to extract minimum balance for filtering
         def parse_lower(x):
             try:
                 return float(x.split('-')[0].replace(',', '').strip())
@@ -318,9 +318,7 @@ with tab2:
         summary_rows = []
         for date, g in df.groupby("date"):
             g = g.copy()
-            # Wallets ≥ 1,000,000 XRP
             whale_1m = g[g['min_balance'] >= 1_000_000]['Accounts'].sum()
-            # Wallets ≥ 100,000 XRP
             whale_100k = g[g['min_balance'] >= 100_000]['Accounts'].sum()
             summary_rows.append({
                 'Date': date.date(),
@@ -332,7 +330,6 @@ with tab2:
         summary['Δ vs Prior Day (1M+)'] = summary['Wallets ≥ 1M XRP'].diff().fillna(0).astype(int)
         summary['Δ vs Prior Day (100K+)'] = summary['Wallets ≥ 100K XRP'].diff().fillna(0).astype(int)
 
-        # Format for display
         display_summary = summary.copy()
         for col in ['Wallets ≥ 1M XRP', 'Wallets ≥ 100K XRP', 'Δ vs Prior Day (1M+)', 'Δ vs Prior Day (100K+)']:
             display_summary[col] = display_summary[col].map('{:,}'.format)
@@ -342,18 +339,30 @@ with tab2:
         st.caption("Sum of all XRP wallets holding at least 1,000,000 XRP or 100,000 XRP. Shows daily totals and change from the previous day.")
         st.dataframe(display_summary, use_container_width=True)
 
-    # ---- Helper: Show table with robust day-over-day comparison ----
-    def robust_delta_table(
+    # ---- Robust delta table with dropdown ----
+    def robust_delta_table_with_dropdown(
         df, id_col, delta_cols, normalize_key_func, table_name, int_delta_cols=None
     ):
-        # Sort by date, select latest date and closest previous date
         df = df.copy()
         df['date'] = pd.to_datetime(df['date'])
-        latest_date = df['date'].max()
-        prev_dates = df[df['date'] < latest_date]['date'].unique()
-        prev_date = prev_dates[-1] if len(prev_dates) > 0 else None
+        available_dates = sorted(df['date'].unique())
+        if not available_dates:
+            st.warning("No data available.")
+            return
+        latest_date = available_dates[-1]
 
-        today_df = df[df['date'] == latest_date].copy()
+        # Dropdown for date selection
+        selected_date = st.selectbox(
+            f"Select Date for {table_name}:",
+            [d.date() for d in reversed(available_dates)],
+            key=f"dropdown_{table_name}"
+        )
+        selected_date = pd.to_datetime(selected_date)
+
+        prev_dates = [d for d in available_dates if d < selected_date]
+        prev_date = prev_dates[-1] if prev_dates else None
+
+        today_df = df[df['date'] == selected_date].copy()
         today_df['MergeKey'] = today_df[id_col].apply(normalize_key_func)
 
         if prev_date is not None:
@@ -366,7 +375,6 @@ with tab2:
                 how='left',
                 suffixes=('', '_prev')
             )
-            # Calculate deltas
             for col in delta_cols:
                 try:
                     merged[f'{col} Δ'] = pd.to_numeric(merged[col], errors='coerce') - pd.to_numeric(merged[f'{col}_prev'], errors='coerce')
@@ -374,21 +382,18 @@ with tab2:
                         merged[f'{col} Δ'] = merged[f'{col} Δ'].fillna(0).astype(int)
                 except Exception as e:
                     merged[f'{col} Δ'] = None
-            # Format numbers with commas
             for col in delta_cols + [f'{c} Δ' for c in delta_cols]:
                 merged[col] = pd.to_numeric(merged[col], errors='coerce')
                 if merged[col].notna().all():
-                    if col in int_delta_cols or (col.endswith('Δ') and col.replace(' Δ', '') in int_delta_cols):
+                    if int_delta_cols and (col in int_delta_cols or (col.endswith('Δ') and col.replace(' Δ', '') in int_delta_cols)):
                         merged[col] = merged[col].map('{:,}'.format)
                     else:
                         merged[col] = merged[col].map(lambda x: f"{x:,.10g}" if pd.notnull(x) else "")
-            # Display only today's data, drop merge key and prev cols
             keep_cols = [id_col] + delta_cols + [f"{c} Δ" for c in delta_cols]
             st.markdown(f"#### {table_name}")
-            st.caption(f"Date: {latest_date.date()}")
+            st.caption(f"Date: {selected_date.date()} (compared to {prev_date.date()})")
             st.dataframe(merged[keep_cols], use_container_width=True)
         else:
-            # Only today's data, no deltas
             for col in delta_cols:
                 today_df[col] = pd.to_numeric(today_df[col], errors='coerce')
                 if int_delta_cols and col in int_delta_cols:
@@ -396,14 +401,14 @@ with tab2:
                 else:
                     today_df[col] = today_df[col].map(lambda x: f"{x:,.10g}" if pd.notnull(x) else "")
             st.markdown(f"#### {table_name}")
-            st.caption(f"Date: {latest_date.date()}")
+            st.caption(f"Date: {selected_date.date()}")
             st.dataframe(today_df[[id_col] + delta_cols], use_container_width=True)
 
     # Table 1: Number Of Accounts And Sum Of Balance Range
     if os.path.exists(ACCOUNTS_CSV):
         df = pd.read_csv(ACCOUNTS_CSV)
         try:
-            robust_delta_table(
+            robust_delta_table_with_dropdown(
                 df,
                 id_col="Balance Range (XRP)",
                 delta_cols=["Accounts", "Sum in Range (XRP)"],
@@ -420,7 +425,7 @@ with tab2:
     if os.path.exists(PERCENT_CSV):
         df = pd.read_csv(PERCENT_CSV)
         try:
-            robust_delta_table(
+            robust_delta_table_with_dropdown(
                 df,
                 id_col="Threshold (%)",
                 delta_cols=["Accounts ≥ Threshold", "XRP ≥ Threshold"],
@@ -432,8 +437,6 @@ with tab2:
             st.error(f"Table 2 error: {e}")
     else:
         st.info("current_stats_percent_history.csv not found.")
-
-
 
 
 
