@@ -500,7 +500,7 @@ with tab1:
         )
         st.plotly_chart(fig, use_container_width=True, config={
             'displayModeBar': False,
-            'staticPlot': True,
+            'staticPlot': False,
             'scrollZoom': False,
             'editable': False,
             'doubleClick': 'reset',
