@@ -497,7 +497,7 @@ with tab1:
             plot_bgcolor='#1e222d',
             paper_bgcolor='#1e222d',
             font=dict(color='#F1F1F1'),
-            dragmode=False
+            #dragmode=False
         )
         st.plotly_chart(fig, use_container_width=True, config={
             'displayModeBar': False,
