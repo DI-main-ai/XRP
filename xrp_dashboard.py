@@ -469,7 +469,11 @@ with tab1:
     
         # Rename column for plotting
         df_plot = df.rename(columns={"value": value_col})
-    
+        if "–" in title or "-" in title:
+            chart_title = f"Chart: {title} XRP Balance Range"
+        else:
+            chart_title = f"Chart: {title}"
+        st.subheader(chart_title)
         # Plot with correct y axis
         fig = px.line(
             df_plot,
@@ -489,6 +493,7 @@ with tab1:
             hovertemplate=f"<b>%{{x|%b %d, %Y}}</b><br>{value_col}=%{{y:,}}<extra></extra>",
         )
         fig.update_layout(
+            title_text=chart_title,
             xaxis_title="Date",
             hovermode="x",
             xaxis=dict(showspikes=True, spikemode='across', spikethickness=2),
