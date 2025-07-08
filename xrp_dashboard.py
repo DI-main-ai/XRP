@@ -431,6 +431,7 @@ with tab1:
         f for f in os.listdir('csv')
         if f.endswith('_Series1_DAILY_LATEST.csv')
     ]
+    st.write("CSV files found:", csv_files)
     file_to_title = {
         f: f.replace('_Series1_DAILY_LATEST.csv', '').replace('_', ' ').replace('-', '–').replace('Infinity', '∞').strip()
         for f in csv_files
