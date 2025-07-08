@@ -330,6 +330,11 @@ with tab2:
         summary['Δ Wallets ≥ 100K'] = summary['Wallets ≥ 100K'].diff().fillna(0).astype(int)
         summary['date'] = summary['date'].dt.date
 
+        # FORMAT with commas
+        summary_fmt = summary.copy()
+        for col in ["Wallets ≥ 1M", "Δ Wallets ≥ 1M", "Wallets ≥ 100K", "Δ Wallets ≥ 100K"]:
+            summary_fmt[col] = summary_fmt[col].apply(lambda x: f"{x:,}")
+
         with st.container():
             st.subheader("🦈 Whale Wallet Count Summary (by Day)")
             st.write(
@@ -337,7 +342,7 @@ with tab2:
                 "Shows daily totals and change from the previous day."
             )
             st.dataframe(
-                summary.rename(columns={
+                summary_fmt.rename(columns={
                     "date": "Date",
                     "Wallets ≥ 1M": "Wallets ≥ 1M XRP",
                     "Δ Wallets ≥ 1M": "Δ vs Prior Day (1M+)",
@@ -346,6 +351,7 @@ with tab2:
                 }),
                 use_container_width=True
             )
+
     # ---- END Whale Wallet Summary ----
 
     # Table 1: Number Of Accounts And Sum Of Balance Range
