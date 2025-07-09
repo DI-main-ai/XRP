@@ -586,9 +586,8 @@ with tab1:
             file_name=csv_file,
             mime='text/csv',
         )
-        st.markdown("&nbsp;"*5, unsafe_allow_html=True)  # 3 line breaks
-    
-        st.caption("Click or Touch any Point on the Chart to see its Hoverbox Value. Tap either Axis to reset Hoverbox")
+        st.caption("Mouse over or Touch any Point on the Chart to see its Hoverbox Value (Tap either Axis to reset Hoverbox on Mobile).")
+        st.markdown("&nbsp;"*5, unsafe_allow_html=True)  # 5 line breaks
     
     
 
