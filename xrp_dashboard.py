@@ -492,10 +492,30 @@ with tab1:
             markers=True,
             labels={value_col: value_col}
         )
+        # fig.update_yaxes(
+        #     tickformat="~s",
+        #     title_text=value_col   # <--- This will match exactly!
+        # )
+        def billions_tick_formatter(x):
+            # Format as e.g., 7.2B instead of 7.2G
+            if abs(x) >= 1e9:
+                return f"{x/1e9:.1f}B"
+            elif abs(x) >= 1e6:
+                return f"{x/1e6:.1f}M"
+            elif abs(x) >= 1e3:
+                return f"{x/1e3:.1f}K"
+            else:
+                return str(int(x))
+        
+        import plotly.graph_objects as go
+        
         fig.update_yaxes(
-            tickformat="~s",
-            title_text=value_col   # <--- This will match exactly!
+            tickformat=None,  # Remove default
+            tickvals=[v for v in range(int(df_plot[value_col].min()), int(df_plot[value_col].max())+1, int(1e9))],  # 1B steps
+            ticktext=[billions_tick_formatter(v) for v in range(int(df_plot[value_col].min()), int(df_plot[value_col].max())+1, int(1e9))],
+            title_text=value_col
         )
+
         fig.update_traces(
             line=dict(width=1.5),
             marker=dict(size=4, color='#aad8ff', line=dict(width=0)),
