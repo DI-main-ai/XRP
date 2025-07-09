@@ -210,22 +210,32 @@ def calc_and_display_delta_table(
 
     # Get available dates in *ascending* order (oldest first)
     dates_available = sorted(df[date_col].dt.date.unique())
+
+    # -- TABLE TITLE (do not move)
+    st.subheader(table_name)
+
+    # -- DATE DROPDOWN (move here, right below title, above subtitle)
     sel_date = st.selectbox(
         f"📅 Select Date for {table_name}:", dates_available[::-1], 0, key=f"date_{table_name}"
     )
-    # show_delta = st.checkbox(
-    #     f"Show change vs previous day", value=True, key=f"delta_{table_name}"
-    # )
-    show_delta=True
-    # This day's data
+
+    show_delta = True
+
+    # -- SUBTITLE (shows the dates being compared)
+    prev_dates = [d for d in dates_available if d < sel_date]
+    prior_date = max(prev_dates) if prev_dates else None
+    subtitle = f"<span style='color:#aaa;'>Date: {sel_date}"
+    if show_delta and prior_date:
+        subtitle += f" (compared to {prior_date})"
+    subtitle += "</span>"
+    st.markdown(subtitle, unsafe_allow_html=True)
+
+    # -- Main Table logic follows (unchanged)
     today_df = df[df[date_col].dt.date == sel_date].copy()
     today_df = today_df.drop_duplicates(subset=[id_col])
     keep_cols = [date_col, id_col] + delta_cols
     today_df = today_df[keep_cols].reset_index(drop=True)
 
-    # Closest previous day, not necessarily “yesterday”
-    prev_dates = [d for d in dates_available if d < sel_date]
-    prior_date = max(prev_dates) if prev_dates else None
     yest_df = df[df[date_col].dt.date == prior_date].copy() if prior_date else pd.DataFrame()
     yest_df = yest_df.drop_duplicates(subset=[id_col])
     yest_df = yest_df[keep_cols].reset_index(drop=True) if not yest_df.empty else pd.DataFrame()
@@ -273,7 +283,6 @@ def calc_and_display_delta_table(
             else:
                 merged[f"{col_pretty} Δ"] = ""
 
-
         keep = [c for c in merged.columns if not c.endswith("_prev") and c != "MergeKey"]
         today_df = merged[keep]
 
@@ -286,13 +295,6 @@ def calc_and_display_delta_table(
         if c == id_col_pretty:
             today_df[c] = today_df[c]  # Keep as is (do not overwrite with nan!)
 
-    # Show the table
-    st.subheader(table_name)
-    subtitle = f"<span style='color:#aaa;'>Date: {sel_date}"
-    if show_delta and prior_date:
-        subtitle += f" (compared to {prior_date})"
-    subtitle += "</span>"
-    st.markdown(subtitle, unsafe_allow_html=True)
     st.dataframe(today_df.drop(columns=[date_col]), use_container_width=True, hide_index=True)
     st.download_button(
         label=f"Download {table_name}",
@@ -303,6 +305,7 @@ def calc_and_display_delta_table(
     if return_dataframe:
         return today_df
     return None
+
 
 
 def format_number(x):
