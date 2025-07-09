@@ -213,10 +213,10 @@ def calc_and_display_delta_table(
     sel_date = st.selectbox(
         f"📅 Select Date for {table_name}:", dates_available[::-1], 0, key=f"date_{table_name}"
     )
-    show_delta = st.checkbox(
-        f"Show change vs previous day", value=True, key=f"delta_{table_name}"
-    )
-
+    # show_delta = st.checkbox(
+    #     f"Show change vs previous day", value=True, key=f"delta_{table_name}"
+    # )
+    show_delta=True
     # This day's data
     today_df = df[df[date_col].dt.date == sel_date].copy()
     today_df = today_df.drop_duplicates(subset=[id_col])
