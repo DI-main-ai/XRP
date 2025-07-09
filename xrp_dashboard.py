@@ -4,6 +4,7 @@ import plotly.express as px
 import os
 import re
 from datetime import datetime
+import numpy as np
 
 # ----- DARK THEME INJECT -----
 st.set_page_config(page_title="XRP Rich List Dashboard", initial_sidebar_state="collapsed", layout="centered")
@@ -497,32 +498,49 @@ with tab1:
         #     tickformat="~s",
         #     title_text=value_col   # <--- This will match exactly!
         # )
-        def billions_tick_formatter(x):
-            # Format as 7.2B, 700M, etc.
-            if abs(x) >= 1e9:
-                return f"{x/1e9:.1f}B"
-            elif abs(x) >= 1e6:
-                return f"{x/1e6:.1f}M"
-            elif abs(x) >= 1e3:
-                return f"{x/1e3:.1f}K"
-            else:
-                return str(int(x))
+
+        def auto_tickvals_and_labels(ymin, ymax, n_ticks=5):
+            # Always use float for safety
+            ymin = float(ymin)
+            ymax = float(ymax)
+            span = ymax - ymin
+            if span == 0:
+                return [ymin], [f"{ymin:,.0f}"]
+            # Calculate rough step
+            raw_step = span / (n_ticks - 1)
+            # Snap to nearest nice value
+            exp = int(np.floor(np.log10(raw_step)))
+            base = 10 ** exp
+            step = np.ceil(raw_step / base) * base
+            # Now build ticks
+            start = np.floor(ymin / step) * step
+            end = np.ceil(ymax / step) * step
+            ticks = np.arange(start, end + step, step)
+            # Format
+            def fmt(v):
+                abs_v = abs(v)
+                if abs_v >= 1e9:
+                    return f"{v/1e9:.2f}B"
+                elif abs_v >= 1e6:
+                    return f"{v/1e6:.2f}M"
+                elif abs_v >= 1e3:
+                    return f"{v/1e3:.2f}K"
+                else:
+                    return f"{int(v)}"
+            labels = [fmt(v) for v in ticks]
+            return ticks, labels
+
         
-        y_min = df_plot[value_col].min()
-        y_max = df_plot[value_col].max()
-        if y_max >= 1e9:
-            step = 1e9
-            ticks = list(range(int(y_min//step*step), int(y_max//step*step + 2*step), int(step)))
-            fig.update_yaxes(
-                tickvals=ticks,
-                ticktext=[billions_tick_formatter(v) for v in ticks],
-                title_text=value_col
-            )
-        else:
-            fig.update_yaxes(
-                tickformat="~s",
-                title_text=value_col
-            )
+        ymin = df_plot[value_col].min()
+        ymax = df_plot[value_col].max()
+        tickvals, ticktext = auto_tickvals_and_labels(ymin, ymax, n_ticks=6)   # try 5–7 ticks for best result
+        
+        fig.update_yaxes(
+            tickformat=None,  # Don't abbreviate automatically
+            tickvals=tickvals,
+            ticktext=ticktext,
+            title_text=value_col
+        )
         fig.update_traces(
             line=dict(width=1.5),
             marker=dict(size=4, color='#aad8ff', line=dict(width=0)),
