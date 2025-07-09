@@ -9,6 +9,21 @@ from datetime import datetime
 st.set_page_config(page_title="XRP Rich List Dashboard", initial_sidebar_state="collapsed", layout="centered")
 st.markdown("""
     <style>
+    /* Shrink width of selectbox and add a border for noticeability */
+    div[data-baseweb="select"] {
+        max-width: 250px !important;
+        border: 2px solid #FFCE33 !important;    /* gold border for visibility */
+        border-radius: 6px !important;
+        box-shadow: 0 0 8px #22263333 !important;
+        margin-bottom: 1em !important;
+        background: #29293a !important;
+    }
+    /* Optional: make the label more visible */
+    label[for^="date_"] {
+        font-weight: bold !important;
+        color: #FFCE33 !important;
+        font-size: 1.15em !important;
+    }
     /* Kill ALL background/border/shadow on markdown chart titles */
     div[data-testid="stMarkdownContainer"] {
         background: none !important;
@@ -196,7 +211,7 @@ def calc_and_display_delta_table(
     # Get available dates in *ascending* order (oldest first)
     dates_available = sorted(df[date_col].dt.date.unique())
     sel_date = st.selectbox(
-        f"Select Date for {table_name}:", dates_available[::-1], 0, key=f"date_{table_name}"
+        f"📅 Select Date for {table_name}:", dates_available[::-1], 0, key=f"date_{table_name}"
     )
     show_delta = st.checkbox(
         f"Show change vs previous day", value=True, key=f"delta_{table_name}"
