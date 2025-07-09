@@ -492,10 +492,10 @@ with tab1:
             markers=True,
             labels={value_col: value_col}
         )
-        # fig.update_yaxes(
-        #     tickformat="~s",
-        #     title_text=value_col   # <--- This will match exactly!
-        # )
+        fig.update_yaxes(
+            tickformat="~s",
+            title_text=value_col   # <--- This will match exactly!
+        )
         def billions_tick_formatter(x):
             # Format as e.g., 7.2B instead of 7.2G
             if abs(x) >= 1e9:
