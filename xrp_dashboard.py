@@ -436,7 +436,7 @@ with tab2:
 
 with tab1:
     st.header("📈 Rich List Charts")
-
+    st.info("Scroll down to see all charts!")
     # List and sort all Series1_DAILY_LATEST.csv files as before
     csv_files = [
         f for f in os.listdir('csv')
@@ -590,7 +590,7 @@ with tab1:
     
         st.caption("Click or Touch any Point on the Chart to see its Hoverbox Value. Tap either Axis to reset Hoverbox")
     
-    st.info("Scroll down to see all charts!")
+    
 
 
 
