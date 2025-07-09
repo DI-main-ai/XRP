@@ -497,16 +497,25 @@ with tab1:
         #     tickformat="~s",
         #     title_text=value_col   # <--- This will match exactly!
         # )
-        if df_plot[value_col].max() >= 1e9:
+        def billions_tick_formatter(x):
+            # Format as 7.2B, 700M, etc.
+            if abs(x) >= 1e9:
+                return f"{x/1e9:.1f}B"
+            elif abs(x) >= 1e6:
+                return f"{x/1e6:.1f}M"
+            elif abs(x) >= 1e3:
+                return f"{x/1e3:.1f}K"
+            else:
+                return str(int(x))
+        
+        y_min = df_plot[value_col].min()
+        y_max = df_plot[value_col].max()
+        if y_max >= 1e9:
+            step = 1e9
+            ticks = list(range(int(y_min//step*step), int(y_max//step*step + 2*step), int(step)))
             fig.update_yaxes(
-                tickformat=".1f",
-                ticksuffix="B",
-                title_text=value_col
-            )
-        elif df_plot[value_col].max() >= 1e6:
-            fig.update_yaxes(
-                tickformat=".1f",
-                ticksuffix="M",
+                tickvals=ticks,
+                ticktext=[billions_tick_formatter(v) for v in ticks],
                 title_text=value_col
             )
         else:
