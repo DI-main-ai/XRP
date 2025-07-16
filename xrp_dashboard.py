@@ -439,12 +439,6 @@ with tab2:
     
         # Get all available dates, newest first for dropdown
         available_dates = sorted(df["date"].dt.date.unique(), reverse=True)
-        sel_date = st.selectbox(
-            "📅 Select Date for XRP Distribution Chart:",
-            available_dates,
-            0,
-            key="date_bar_chart"
-        )
     
         # Use only the selected date
         df_br = df[df["date"].dt.date == sel_date].copy()
@@ -512,6 +506,9 @@ with tab2:
             margin=dict(l=120, r=60, t=80, b=60),
             bargap=0.40,
             dragmode=False,
+            uniformtext_minsize=20,    # Forces at least 20px size for all bar text
+            uniformtext_mode='show',
+            width=950,                 # (Optional: force chart wider for more space, adjust as needed)
         )
     
         # Prevent zoom/pan
@@ -522,10 +519,16 @@ with tab2:
     
         # Make sure % text at end of bar is large and fits
         fig_bar.update_traces(cliponaxis=False,
-                              textfont_size=20,  # <<-- MAKE LABELS LARGER
+                              textfont_size=24,  # <<-- MAKE LABELS LARGER
                               insidetextanchor="end")
     
-        st.markdown("## XRP Distribution by Account Balance Range (Bar Chart)")
+        st.markdown("### XRP Distribution by Account Balance Range (Bar Chart)")
+        sel_date = st.selectbox(
+            "📅 Select Date for XRP Distribution Chart:",
+            available_dates,
+            0,
+            key="date_bar_chart"
+        )
         st.plotly_chart(fig_bar, use_container_width=True, config={
             'displayModeBar': False,  # Hide toolbar
             'staticPlot': False,
