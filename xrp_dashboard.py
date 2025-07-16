@@ -507,9 +507,9 @@ with tab2:
             margin=dict(l=120, r=60, t=80, b=60),
             bargap=0.50,     # Use whatever gap looks best
             dragmode=False,
-            uniformtext_minsize=20,    # <<--- Force label size
+            uniformtext_minsize=15,    # <<--- Force label size
             uniformtext_mode='show',
-            width=950,                 # (Optional, remove if too wide for your layout)
+            #width=950,                 # (Optional, remove if too wide for your layout)
         )
         
         fig_bar.update_layout(
