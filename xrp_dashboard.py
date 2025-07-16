@@ -477,40 +477,36 @@ with tab2:
         bar_hover = bar_hover[::-1]
     
         fig_bar = go.Figure(go.Bar(
-            x=bar_values,
-            y=bar_labels,
+            x=bar_values[::-1],
+            y=bar_labels[::-1],
             orientation='h',
-            text=bar_text,
+            text=bar_text[::-1],
             textposition='outside',
-            marker=dict(
-                color='#FDBA21',
-                line=dict(width=0)
-            ),
-            hovertemplate="<b>%{y}</b><br>Sum in Range (XRP): <b>%{customdata}</b><br>Share of All XRP: <b>%{x:.2f}%</b><extra></extra>",
-            customdata=bar_hover
+            marker=dict(color='#FDBA21'),
+            textfont=dict(size=14),  # <<-- Directly set label font size here
+            hovertemplate="%{y}: %{x:.2f}%"
         ))
-        
         fig_bar.update_layout(
             title={
                 "text": "XRP Distribution by Account Balance Range",
-                "y":0.93,
-                "x":0.5,
+                "y": 0.95,
+                "x": 0.5,
                 "xanchor": "center",
                 "yanchor": "top",
                 "font": dict(size=22)
             },
+            margin=dict(l=120, r=60, t=120, b=60),  # t=120 for more top margin
             xaxis_title="% of All XRP in Circulation",
             yaxis_title="Balance Range",
             plot_bgcolor='#1e222d',
             paper_bgcolor='#1e222d',
-            font=dict(color='#F1F1F1', size=18),
-            margin=dict(l=120, r=60, t=80, b=60),
-            bargap=0.50,     # Use whatever gap looks best
-            dragmode=False,
-            uniformtext_minsize=20,    # <<--- Force label size
+            font=dict(color='#F1F1F1', size=16),
+            uniformtext_minsize=10,
             uniformtext_mode='show',
-            #width=950,                 # (Optional, remove if too wide for your layout)
+            bargap=0.4,
+            dragmode=False,
         )
+
         
         fig_bar.update_layout(
             xaxis=dict(fixedrange=True),
