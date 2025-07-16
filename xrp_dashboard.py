@@ -450,40 +450,32 @@ with tab2:
         df_br = df[df["date"].dt.date == sel_date].copy()
     
         # Keep the same balance range order (descending min_balance)
+        # Make sure to use the same Balance Range order as your table (descending min_balance)
         def parse_lower(x):
             try:
                 return float(x.split('-')[0].replace(',', '').strip())
             except:
                 return 0
-    
         df_br['min_balance'] = df_br['Balance Range (XRP)'].apply(parse_lower)
-        df_br = df_br.sort_values('min_balance', ascending=False)
-    
-        # Prepare data for chart
+        df_br = df_br.sort_values('min_balance', ascending=False)  # <--- biggest at top
+        
+        # Calculate percentages
         df_br["Sum in Range (XRP)"] = pd.to_numeric(df_br["Sum in Range (XRP)"].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
         total_xrp = df_br["Sum in Range (XRP)"].sum()
-        df_br["% of All XRP"] = df_br["Sum in Range (XRP)"] / total_xrp * 100
-    
-        # Format columns
+        df_br["% of All XRP in Circulation"] = df_br["Sum in Range (XRP)"] / total_xrp * 100
+        
         bar_labels = df_br["Balance Range (XRP)"]
-        bar_values = df_br["% of All XRP"]
-        bar_text = df_br["% of All XRP"].map(lambda x: f"{x:.2f}%")
-        bar_hover = df_br["Sum in Range (XRP)"].map(lambda x: f"{int(round(x)):,} XRP")
-    
-        # Reverse for plotly top-to-bottom order
-        bar_labels = bar_labels[::-1]
-        bar_values = bar_values[::-1]
-        bar_text = bar_text[::-1]
-        bar_hover = bar_hover[::-1]
-    
+        bar_values = df_br["% of All XRP in Circulation"]
+        bar_text = df_br["% of All XRP in Circulation"].map(lambda x: f"{x:.2f}%")
+        
         fig_bar = go.Figure(go.Bar(
-            x=bar_values[::-1],
-            y=bar_labels[::-1],
+            x=bar_values,      # <- no reversal
+            y=bar_labels,
             orientation='h',
-            text=bar_text[::-1],
+            text=bar_text,
             textposition='outside',
             marker=dict(color='#FDBA21'),
-            textfont=dict(size=14),  # <<-- Directly set label font size here
+            textfont=dict(size=14),
             hovertemplate="%{y}: %{x:.2f}%"
         ))
         fig_bar.update_layout(
