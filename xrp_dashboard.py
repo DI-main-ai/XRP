@@ -497,12 +497,12 @@ with tab2:
     
         fig_bar.update_layout(
             title={
-                "text": "XRP Distribution by Account Balance Range (Bar Chart)",
+                "text": "XRP Distribution by Account Balance Range",
                 "y":0.95,
                 "x":0.5,
                 "xanchor": "center",
                 "yanchor": "top",
-                "font": dict(size=28)
+                "font": dict(size=22)
             },
             xaxis_title="% of All XRP in Circulation",
             yaxis_title="Balance Range",
@@ -510,7 +510,7 @@ with tab2:
             paper_bgcolor='#1e222d',
             font=dict(color='#F1F1F1', size=18),
             margin=dict(l=120, r=60, t=80, b=60),
-            bargap=0.22,
+            bargap=0.40,
             dragmode=False,
         )
     
