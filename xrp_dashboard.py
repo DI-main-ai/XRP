@@ -497,6 +497,7 @@ with tab2:
             uniformtext_mode='show',
             bargap=0.4,
             dragmode=False,
+            height=650, 
         )
 
         
