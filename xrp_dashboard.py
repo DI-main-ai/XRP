@@ -465,12 +465,12 @@ with tab2:
         # Calculate percentages
         df_br["Sum in Range (XRP)"] = pd.to_numeric(df_br["Sum in Range (XRP)"].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
         total_xrp = df_br["Sum in Range (XRP)"].sum()
-        df_br["% of All XRP"] = df_br["Sum in Range (XRP)"] / total_xrp * 100
+        df_br["% of All XRP in Circulation"] = df_br["Sum in Range (XRP)"] / total_xrp * 100
         
         # Format for display
         bar_labels = df_br["Balance Range (XRP)"]
-        bar_values = df_br["% of All XRP"]
-        bar_text = df_br["% of All XRP"].map(lambda x: f"{x:.2f}%")
+        bar_values = df_br["% of All XRP in Circulation"]
+        bar_text = df_br["% of All XRP in Circulation"].map(lambda x: f"{x:.2f}%")
         
         # Create horizontal bar chart
         fig_bar = go.Figure(go.Bar(
@@ -488,12 +488,12 @@ with tab2:
         
         fig_bar.update_layout(
             title={
-                "text": "XRP Distribution by Account Balance Range (Bar Chart)",
+                "text": "XRP Distribution by Account Balance Range",
                 "y":0.95,
                 "x":0.5,
                 "xanchor": "center",
                 "yanchor": "top",
-                "font": dict(size=32)
+                "font": dict(size=28)
             },
             xaxis_title="% of All XRP",
             yaxis_title="Balance Range",
@@ -501,7 +501,7 @@ with tab2:
             paper_bgcolor='#1e222d',
             font=dict(color='#F1F1F1', size=16),
             margin=dict(l=120, r=60, t=90, b=60),
-            bargap=0.18,
+            bargap=0.20,
             dragmode=False, # Disable zoom/pan
         )
         
