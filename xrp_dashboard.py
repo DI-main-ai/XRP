@@ -488,20 +488,21 @@ with tab2:
         
         fig_bar.update_layout(
             title={
-                "text": "XRP Distribution by Account Balance Range",
+                "text": "XRP Distribution by Balance Range",
                 "y":0.95,
                 "x":0.5,
                 "xanchor": "center",
                 "yanchor": "top",
-                "font": dict(size=28)
+                "font": dict(size=22)
             },
             xaxis_title="% of All XRP in Circulation",
+            hovermode="x",
             yaxis_title="Balance Range",
             plot_bgcolor='#1e222d',
             paper_bgcolor='#1e222d',
             font=dict(color='#F1F1F1', size=16),
             margin=dict(l=120, r=60, t=90, b=60),
-            bargap=0.25,
+            bargap=0.50,
             dragmode=False, # Disable zoom/pan
         )
         
@@ -518,7 +519,10 @@ with tab2:
         st.markdown("## XRP Distribution by Account Balance Range (Bar Chart)")
         st.plotly_chart(fig_bar, use_container_width=True, config={
             'displayModeBar': False,  # Hide toolbar
-            'staticPlot': True,       # No zoom/pan
+            'staticPlot': False,
+            'scrollZoom': False,
+            'editable': False,
+            'doubleClick': 'reset',
         })
 
 
