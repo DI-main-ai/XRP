@@ -480,7 +480,7 @@ with tab2:
         ))
         fig_bar.update_layout(
             title={
-                "text": "XRP Distribution by Account Balance Range",
+                "text": "XRP Distribution by Balance Range",
                 "y": 0.95,
                 "x": 0.5,
                 "xanchor": "center",
@@ -497,7 +497,7 @@ with tab2:
             uniformtext_mode='show',
             bargap=0.4,
             dragmode=False,
-            height=650, 
+            height=600, 
         )
 
         
