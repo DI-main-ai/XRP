@@ -469,10 +469,10 @@ with tab2:
         bar_text = df_br["% of All XRP in Circulation"].map(lambda x: f"{x:.2f}%")
         
         fig_bar = go.Figure(go.Bar(
-            x=bar_values,      # <- no reversal
-            y=bar_labels,
+            x=bar_values[::-1],      # <- no reversal
+            y=bar_labels[::-1],
             orientation='h',
-            text=bar_text,
+            text=bar_text[::-1],
             textposition='outside',
             marker=dict(color='#FDBA21'),
             textfont=dict(size=14),
