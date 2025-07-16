@@ -429,93 +429,102 @@ with tab2:
             st.error(f"Table 2 error: {e}")
     else:
         st.info("current_stats_percent_history.csv not found.")
-    # --- Pie Chart: Sum in Range (XRP) by Balance Range (XRP) ---
-
+    # ---Bar Chart: Sum in Range (XRP) by Balance Range (XRP) ---
     # Reload the current day table (use same filtering as your delta table)
+    import plotly.graph_objects as go
+    
     if os.path.exists(ACCOUNTS_CSV):
         df = pd.read_csv(ACCOUNTS_CSV)
         df["date"] = pd.to_datetime(df["date"])
-        latest_date = df["date"].max()
-        latest_df = df[df["date"] == latest_date].copy()
     
+        # Get all available dates, newest first for dropdown
+        available_dates = sorted(df["date"].dt.date.unique(), reverse=True)
+        sel_date = st.selectbox(
+            "📅 Select Date for XRP Distribution Chart:",
+            available_dates,
+            0,
+            key="date_bar_chart"
+        )
     
-        import plotly.graph_objects as go
-
-        # -------- BAR CHART: XRP Distribution by Balance Range --------
-        
-        # Use the most recent date’s data (or let user pick date if you want)
-        date_col = "date"
-        if date_col in df.columns:
-            df[date_col] = pd.to_datetime(df[date_col])
-            latest_date = df[date_col].max()
-            df_br = df[df[date_col] == latest_date].copy()
-        else:
-            df_br = df.copy()
-        
-        # Make sure to use the same Balance Range order as your table (descending min_balance)
+        # Use only the selected date
+        df_br = df[df["date"].dt.date == sel_date].copy()
+    
+        # Keep the same balance range order (descending min_balance)
         def parse_lower(x):
             try:
                 return float(x.split('-')[0].replace(',', '').strip())
             except:
                 return 0
-        
+    
         df_br['min_balance'] = df_br['Balance Range (XRP)'].apply(parse_lower)
         df_br = df_br.sort_values('min_balance', ascending=False)
-        
-        # Calculate percentages
+    
+        # Prepare data for chart
         df_br["Sum in Range (XRP)"] = pd.to_numeric(df_br["Sum in Range (XRP)"].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
         total_xrp = df_br["Sum in Range (XRP)"].sum()
-        df_br["% of All XRP in Circulation"] = df_br["Sum in Range (XRP)"] / total_xrp * 100
-        
-        # Format for display
+        df_br["% of All XRP"] = df_br["Sum in Range (XRP)"] / total_xrp * 100
+    
+        # Format columns
         bar_labels = df_br["Balance Range (XRP)"]
-        bar_values = df_br["% of All XRP in Circulation"]
-        bar_text = df_br["% of All XRP in Circulation"].map(lambda x: f"{x:.2f}%")
-        
-        # Create horizontal bar chart
+        bar_values = df_br["% of All XRP"]
+        bar_text = df_br["% of All XRP"].map(lambda x: f"{x:.2f}%")
+        bar_hover = df_br["Sum in Range (XRP)"].map(lambda x: f"{int(round(x)):,} XRP")
+    
+        # Reverse for plotly top-to-bottom order
+        bar_labels = bar_labels[::-1]
+        bar_values = bar_values[::-1]
+        bar_text = bar_text[::-1]
+        bar_hover = bar_hover[::-1]
+    
         fig_bar = go.Figure(go.Bar(
-            x=bar_values[::-1],  # Reverse for correct top-to-bottom order
-            y=bar_labels[::-1],
+            x=bar_values,
+            y=bar_labels,
             orientation='h',
-            text=bar_text[::-1],
+            text=bar_text,
             textposition='outside',
             marker=dict(
                 color='#FDBA21',
                 line=dict(width=0)
             ),
-            hovertemplate="%{y}: %{x:.2f}%"
+            # Show the "Sum in Range (XRP)" value when hovering anywhere over bar
+            hovertemplate=(
+                "<b>%{y}</b><br>"
+                "Sum in Range (XRP): <b>%{customdata}</b><br>"
+                "Share of All XRP: <b>%{x:.2f}%</b><extra></extra>"
+            ),
+            customdata=bar_hover
         ))
-        
+    
         fig_bar.update_layout(
             title={
-                "text": "XRP Distribution by Balance Range",
+                "text": "XRP Distribution by Account Balance Range (Bar Chart)",
                 "y":0.95,
                 "x":0.5,
                 "xanchor": "center",
                 "yanchor": "top",
-                "font": dict(size=22)
+                "font": dict(size=28)
             },
             xaxis_title="% of All XRP in Circulation",
-            hovermode="x",
             yaxis_title="Balance Range",
             plot_bgcolor='#1e222d',
             paper_bgcolor='#1e222d',
-            font=dict(color='#F1F1F1', size=16),
-            margin=dict(l=120, r=60, t=90, b=60),
-            bargap=0.50,
-            dragmode=False, # Disable zoom/pan
+            font=dict(color='#F1F1F1', size=18),
+            margin=dict(l=120, r=60, t=80, b=60),
+            bargap=0.22,
+            dragmode=False,
         )
-        
-        # Keep chart static (no zoom)
+    
+        # Prevent zoom/pan
         fig_bar.update_layout(
             xaxis=dict(fixedrange=True),
             yaxis=dict(fixedrange=True)
         )
-        
-        # Make sure text labels fit within layout
-        fig_bar.update_traces(cliponaxis=False)
-        
-        # Display in Streamlit
+    
+        # Make sure % text at end of bar is large and fits
+        fig_bar.update_traces(cliponaxis=False,
+                              textfont_size=20,  # <<-- MAKE LABELS LARGER
+                              insidetextanchor="end")
+    
         st.markdown("## XRP Distribution by Account Balance Range (Bar Chart)")
         st.plotly_chart(fig_bar, use_container_width=True, config={
             'displayModeBar': False,  # Hide toolbar
@@ -524,6 +533,7 @@ with tab2:
             'editable': False,
             'doubleClick': 'reset',
         })
+
 
 
 
