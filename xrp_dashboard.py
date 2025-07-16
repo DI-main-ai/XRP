@@ -383,7 +383,7 @@ with tab2:
         st.caption("Sum of all XRP wallets holding at least 1,000,000 XRP or 100,000 XRP. Shows daily totals and change from the previous day.")
         st.dataframe(display_summary, use_container_width=True)
 
-       # ---- Table 1: Number Of Accounts And Sum Of Balance Range ----
+    # ---- Table 1: Number Of Accounts And Sum Of Balance Range ----
     if os.path.exists(ACCOUNTS_CSV):
         df = pd.read_csv(ACCOUNTS_CSV)
         try:
@@ -439,33 +439,88 @@ with tab2:
         latest_df = df[df["date"] == latest_date].copy()
     
     
-        pie_df = latest_df[latest_df["Sum in Range (XRP)"] > 0].copy()
-        pie_df = pie_df.sort_values("Sum in Range (XRP)", ascending=True)
-        pie_df["% of Total XRP"] = pie_df["Sum in Range (XRP)"] / pie_df["Sum in Range (XRP)"].sum() * 100
+        import plotly.graph_objects as go
+
+        # -------- BAR CHART: XRP Distribution by Balance Range --------
         
-        fig = px.bar(
-            pie_df,
-            x="% of Total XRP",
-            y="Balance Range (XRP)",
+        # Use the most recent date’s data (or let user pick date if you want)
+        date_col = "date"
+        if date_col in df.columns:
+            df[date_col] = pd.to_datetime(df[date_col])
+            latest_date = df[date_col].max()
+            df_br = df[df[date_col] == latest_date].copy()
+        else:
+            df_br = df.copy()
+        
+        # Make sure to use the same Balance Range order as your table (descending min_balance)
+        def parse_lower(x):
+            try:
+                return float(x.split('-')[0].replace(',', '').strip())
+            except:
+                return 0
+        
+        df_br['min_balance'] = df_br['Balance Range (XRP)'].apply(parse_lower)
+        df_br = df_br.sort_values('min_balance', ascending=False)
+        
+        # Calculate percentages
+        df_br["Sum in Range (XRP)"] = pd.to_numeric(df_br["Sum in Range (XRP)"].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
+        total_xrp = df_br["Sum in Range (XRP)"].sum()
+        df_br["% of All XRP"] = df_br["Sum in Range (XRP)"] / total_xrp * 100
+        
+        # Format for display
+        bar_labels = df_br["Balance Range (XRP)"]
+        bar_values = df_br["% of All XRP"]
+        bar_text = df_br["% of All XRP"].map(lambda x: f"{x:.2f}%")
+        
+        # Create horizontal bar chart
+        fig_bar = go.Figure(go.Bar(
+            x=bar_values[::-1],  # Reverse for correct top-to-bottom order
+            y=bar_labels[::-1],
             orientation='h',
-            title="XRP Distribution by Account Balance Range",
-            text="% of Total XRP",
-            labels={"% of Total XRP": "% of All XRP", "Balance Range (XRP)": "Balance Range"},
-            color="Balance Range (XRP)"
-        )
-        fig.update_traces(
-            texttemplate='%{x:.2f}%',
-            textposition='outside'
-        )
-        fig.update_layout(
-            showlegend=False,
-            font=dict(size=15, color="#F1F1F1"),
-            title_font=dict(size=22),
+            text=bar_text[::-1],
+            textposition='outside',
+            marker=dict(
+                color='#FDBA21',
+                line=dict(width=0)
+            ),
+            hovertemplate="%{y}: %{x:.2f}%"
+        ))
+        
+        fig_bar.update_layout(
+            title={
+                "text": "XRP Distribution by Account Balance Range (Bar Chart)",
+                "y":0.95,
+                "x":0.5,
+                "xanchor": "center",
+                "yanchor": "top",
+                "font": dict(size=32)
+            },
+            xaxis_title="% of All XRP",
+            yaxis_title="Balance Range",
+            plot_bgcolor='#1e222d',
             paper_bgcolor='#1e222d',
-            plot_bgcolor='#1e222d'
+            font=dict(color='#F1F1F1', size=16),
+            margin=dict(l=120, r=60, t=90, b=60),
+            bargap=0.18,
+            dragmode=False, # Disable zoom/pan
         )
-        st.markdown("### XRP Distribution by Account Balance Range (Bar Chart)")
-        st.plotly_chart(fig, use_container_width=True)
+        
+        # Keep chart static (no zoom)
+        fig_bar.update_layout(
+            xaxis=dict(fixedrange=True),
+            yaxis=dict(fixedrange=True)
+        )
+        
+        # Make sure text labels fit within layout
+        fig_bar.update_traces(cliponaxis=False)
+        
+        # Display in Streamlit
+        st.markdown("## XRP Distribution by Account Balance Range (Bar Chart)")
+        st.plotly_chart(fig_bar, use_container_width=True, config={
+            'displayModeBar': False,  # Hide toolbar
+            'staticPlot': True,       # No zoom/pan
+        })
+
 
 
 
