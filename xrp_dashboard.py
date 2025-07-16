@@ -495,13 +495,13 @@ with tab2:
                 "yanchor": "top",
                 "font": dict(size=28)
             },
-            xaxis_title="% of All XRP",
+            xaxis_title="% of All XRP in Circulation",
             yaxis_title="Balance Range",
             plot_bgcolor='#1e222d',
             paper_bgcolor='#1e222d',
             font=dict(color='#F1F1F1', size=16),
             margin=dict(l=120, r=60, t=90, b=60),
-            bargap=0.20,
+            bargap=0.25,
             dragmode=False, # Disable zoom/pan
         )
         
