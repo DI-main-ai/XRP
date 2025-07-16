@@ -438,33 +438,37 @@ with tab2:
         latest_date = df["date"].max()
         latest_df = df[df["date"] == latest_date].copy()
     
-        # Clean and convert values
-        latest_df["Sum in Range (XRP)"] = pd.to_numeric(latest_df["Sum in Range (XRP)"].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
-        # Optionally drop rows with zero sum or nearly zero (optional, for cleaner chart)
-        pie_df = latest_df[latest_df["Sum in Range (XRP)"] > 0].copy()
     
-        # Build pie chart
-        fig = px.pie(
+        pie_df = latest_df[latest_df["Sum in Range (XRP)"] > 0].copy()
+        pie_df = pie_df.sort_values("Sum in Range (XRP)", ascending=True)
+        pie_df["% of Total XRP"] = pie_df["Sum in Range (XRP)"] / pie_df["Sum in Range (XRP)"].sum() * 100
+        
+        fig = px.bar(
             pie_df,
-            values="Sum in Range (XRP)",
-            names="Balance Range (XRP)",
+            x="% of Total XRP",
+            y="Balance Range (XRP)",
+            orientation='h',
             title="XRP Distribution by Account Balance Range",
-            hole=0.35,  # donut style for aesthetics, change to 0 for full pie
+            text="% of Total XRP",
+            labels={"% of Total XRP": "% of All XRP", "Balance Range (XRP)": "Balance Range"},
+            color="Balance Range (XRP)"
         )
         fig.update_traces(
-            textinfo='percent+label',
-            pull=[0.02 if i==pie_df["Sum in Range (XRP)"].idxmax() else 0 for i in pie_df.index]  # slightly "explode" the largest segment
+            texttemplate='%{x:.2f}%',
+            textposition='outside'
         )
         fig.update_layout(
-            showlegend=True,
-            legend_title_text="Balance Range (XRP)",
+            showlegend=False,
             font=dict(size=15, color="#F1F1F1"),
             title_font=dict(size=22),
             paper_bgcolor='#1e222d',
             plot_bgcolor='#1e222d'
         )
-        st.markdown("### XRP Distribution Pie Chart")
+        st.markdown("### XRP Distribution by Account Balance Range (Bar Chart)")
         st.plotly_chart(fig, use_container_width=True)
+
+
+
 
 
 
