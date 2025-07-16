@@ -516,7 +516,7 @@ with tab2:
             xaxis=dict(fixedrange=True),
             yaxis=dict(fixedrange=True)
         )
-        fig_bar.update_traces(cliponaxis=False, textfont_size=16, insidetextanchor="end")
+        fig_bar.update_traces(cliponaxis=False, textfont_size=12, insidetextanchor="end")
         
         st.plotly_chart(fig_bar, use_container_width=True, config={
             'displayModeBar': False,
