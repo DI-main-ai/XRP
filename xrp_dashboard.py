@@ -429,7 +429,42 @@ with tab2:
             st.error(f"Table 2 error: {e}")
     else:
         st.info("current_stats_percent_history.csv not found.")
+    # --- Pie Chart: Sum in Range (XRP) by Balance Range (XRP) ---
 
+    # Reload the current day table (use same filtering as your delta table)
+    if os.path.exists(ACCOUNTS_CSV):
+        df = pd.read_csv(ACCOUNTS_CSV)
+        df["date"] = pd.to_datetime(df["date"])
+        latest_date = df["date"].max()
+        latest_df = df[df["date"] == latest_date].copy()
+    
+        # Clean and convert values
+        latest_df["Sum in Range (XRP)"] = pd.to_numeric(latest_df["Sum in Range (XRP)"].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
+        # Optionally drop rows with zero sum or nearly zero (optional, for cleaner chart)
+        pie_df = latest_df[latest_df["Sum in Range (XRP)"] > 0].copy()
+    
+        # Build pie chart
+        fig = px.pie(
+            pie_df,
+            values="Sum in Range (XRP)",
+            names="Balance Range (XRP)",
+            title="XRP Distribution by Account Balance Range",
+            hole=0.35,  # donut style for aesthetics, change to 0 for full pie
+        )
+        fig.update_traces(
+            textinfo='percent+label',
+            pull=[0.02 if i==pie_df["Sum in Range (XRP)"].idxmax() else 0 for i in pie_df.index]  # slightly "explode" the largest segment
+        )
+        fig.update_layout(
+            showlegend=True,
+            legend_title_text="Balance Range (XRP)",
+            font=dict(size=15, color="#F1F1F1"),
+            title_font=dict(size=22),
+            paper_bgcolor='#1e222d',
+            plot_bgcolor='#1e222d'
+        )
+        st.markdown("### XRP Distribution Pie Chart")
+        st.plotly_chart(fig, use_container_width=True)
 
 
 
