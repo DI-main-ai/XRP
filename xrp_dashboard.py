@@ -439,7 +439,13 @@ with tab2:
     
         # Get all available dates, newest first for dropdown
         available_dates = sorted(df["date"].dt.date.unique(), reverse=True)
-    
+        st.markdown("### XRP Distribution by Account Balance Range (Bar Chart)")
+        sel_date = st.selectbox(
+            "📅 Select Date for XRP Distribution Chart:",
+            available_dates,
+            0,
+            key="date_bar_chart"
+        )
         # Use only the selected date
         df_br = df[df["date"].dt.date == sel_date].copy()
     
@@ -480,19 +486,14 @@ with tab2:
                 color='#FDBA21',
                 line=dict(width=0)
             ),
-            # Show the "Sum in Range (XRP)" value when hovering anywhere over bar
-            hovertemplate=(
-                "<b>%{y}</b><br>"
-                "Sum in Range (XRP): <b>%{customdata}</b><br>"
-                "Share of All XRP: <b>%{x:.2f}%</b><extra></extra>"
-            ),
+            hovertemplate="<b>%{y}</b><br>Sum in Range (XRP): <b>%{customdata}</b><br>Share of All XRP: <b>%{x:.2f}%</b><extra></extra>",
             customdata=bar_hover
         ))
-    
+        
         fig_bar.update_layout(
             title={
                 "text": "XRP Distribution by Account Balance Range",
-                "y":0.95,
+                "y":0.93,
                 "x":0.5,
                 "xanchor": "center",
                 "yanchor": "top",
@@ -504,33 +505,21 @@ with tab2:
             paper_bgcolor='#1e222d',
             font=dict(color='#F1F1F1', size=18),
             margin=dict(l=120, r=60, t=80, b=60),
-            bargap=0.40,
+            bargap=0.50,     # Use whatever gap looks best
             dragmode=False,
-            uniformtext_minsize=20,    # Forces at least 20px size for all bar text
+            uniformtext_minsize=20,    # <<--- Force label size
             uniformtext_mode='show',
-            width=950,                 # (Optional: force chart wider for more space, adjust as needed)
+            width=950,                 # (Optional, remove if too wide for your layout)
         )
-    
-        # Prevent zoom/pan
+        
         fig_bar.update_layout(
             xaxis=dict(fixedrange=True),
             yaxis=dict(fixedrange=True)
         )
-    
-        # Make sure % text at end of bar is large and fits
-        fig_bar.update_traces(cliponaxis=False,
-                              textfont_size=24,  # <<-- MAKE LABELS LARGER
-                              insidetextanchor="end")
-    
-        st.markdown("### XRP Distribution by Account Balance Range (Bar Chart)")
-        sel_date = st.selectbox(
-            "📅 Select Date for XRP Distribution Chart:",
-            available_dates,
-            0,
-            key="date_bar_chart"
-        )
+        fig_bar.update_traces(cliponaxis=False, textfont_size=24, insidetextanchor="end")
+        
         st.plotly_chart(fig_bar, use_container_width=True, config={
-            'displayModeBar': False,  # Hide toolbar
+            'displayModeBar': False,
             'staticPlot': False,
             'scrollZoom': False,
             'editable': False,
