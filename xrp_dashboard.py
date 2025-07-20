@@ -434,9 +434,6 @@ with tab2:
     import plotly.graph_objects as go
     
     if os.path.exists(ACCOUNTS_CSV):
-        import plotly.graph_objects as go
-        import pandas as pd
-        
         df = pd.read_csv(ACCOUNTS_CSV)
         df["date"] = pd.to_datetime(df["date"])
         
@@ -450,7 +447,7 @@ with tab2:
             key="date_bar_chart"
         )
         
-        # Use only the selected date, but also grab the previous day for comparison
+        # Get today and yesterday's rows
         df_br = df[df["date"].dt.date == sel_date].copy()
         prev_dates = [d for d in available_dates if d < sel_date]
         prior_date = max(prev_dates) if prev_dates else None
@@ -462,14 +459,14 @@ with tab2:
             except:
                 return 0
         
-        # Sort both dataframes for correct order
+        # --- Sorting (reverse y order) ---
         df_br['min_balance'] = df_br['Balance Range (XRP)'].apply(parse_lower)
-        df_br = df_br.sort_values('min_balance', ascending=False)
+        df_br = df_br.sort_values('min_balance', ascending=True)  # <-- ascending for bottom-to-top
         if df_prev is not None and not df_prev.empty:
             df_prev['min_balance'] = df_prev['Balance Range (XRP)'].apply(parse_lower)
-            df_prev = df_prev.sort_values('min_balance', ascending=False)
+            df_prev = df_prev.sort_values('min_balance', ascending=True)
         
-        # Calculate percentages
+        # Percentages
         df_br["Sum in Range (XRP)"] = pd.to_numeric(df_br["Sum in Range (XRP)"].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
         total_xrp = df_br["Sum in Range (XRP)"].sum()
         df_br["% of All XRP in Circulation"] = df_br["Sum in Range (XRP)"] / total_xrp * 100
@@ -478,20 +475,41 @@ with tab2:
         bar_values = df_br["% of All XRP in Circulation"]
         bar_text = df_br["% of All XRP in Circulation"].map(lambda x: f"{x:.2f}%")
         
-        # --- Calculate prior day's values for overlay ---
+        # Prior day overlay as an outline
         if df_prev is not None and not df_prev.empty:
             df_prev["Sum in Range (XRP)"] = pd.to_numeric(df_prev["Sum in Range (XRP)"].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
             total_xrp_prev = df_prev["Sum in Range (XRP)"].sum()
             df_prev["% of All XRP in Circulation"] = df_prev["Sum in Range (XRP)"] / total_xrp_prev * 100
         
-            # Match both frames on Balance Range (ensure same order)
             df_br = df_br.reset_index(drop=True)
             df_prev = df_prev.reset_index(drop=True)
             prev_values = df_prev["% of All XRP in Circulation"]
-        else:
-            prev_values = pd.Series([None]*len(bar_labels), index=bar_labels.index)
         
-        # Main bar for today
+            # Outlines: the prior day's bars as a thin transparent bar with a colored outline
+            bars_outline = go.Bar(
+                x=prev_values,
+                y=bar_labels,
+                orientation='h',
+                marker=dict(
+                    color='rgba(0,0,0,0)',
+                    line=dict(
+                        color=[
+                            "rgba(34,197,94,1)" if curr > prev else
+                            "rgba(239,68,68,1)" if curr < prev else
+                            "rgba(200,200,200,0.6)"
+                            for curr, prev in zip(bar_values, prev_values)
+                        ],
+                        width=6,   # Thickness of outline
+                    )
+                ),
+                hoverinfo='skip',
+                showlegend=False,
+                opacity=1,
+            )
+        else:
+            bars_outline = None
+        
+        # Today's main bars
         bars_today = go.Bar(
             x=bar_values,
             y=bar_labels,
@@ -500,48 +518,15 @@ with tab2:
             textposition='outside',
             marker=dict(color='#FDBA21'),
             textfont=dict(size=14),
-            name="Today",
-            hovertemplate="%{y}: %{x:.2f}%"
-        )
-        
-        # Overlay delta bar: green for increase, red for decrease
-        overlay_x = []
-        overlay_base = []
-        overlay_colors = []
-        
-        for curr, prev in zip(bar_values, prev_values):
-            if prev is None or pd.isna(prev):
-                overlay_x.append(0)
-                overlay_base.append(curr)
-                overlay_colors.append('rgba(0,0,0,0)')
-            elif curr > prev:
-                overlay_x.append(curr - prev)
-                overlay_base.append(prev)
-                overlay_colors.append("rgba(34,197,94,0.8)")   # green
-            elif curr < prev:
-                overlay_x.append(prev - curr)
-                overlay_base.append(curr)
-                overlay_colors.append("rgba(239,68,68,0.8)")  # red
-            else:
-                overlay_x.append(0)
-                overlay_base.append(curr)
-                overlay_colors.append('rgba(0,0,0,0)')
-        
-        bars_overlay = go.Bar(
-            x=overlay_x,
-            y=bar_labels,
-            base=overlay_base,
-            orientation='h',
-            marker=dict(color=overlay_colors),
+            hovertemplate="%{y}: %{x:.2f}%",
             showlegend=False,
-            hovertemplate=
-                "<b>%{y}</b><br>" +
-                "Δ from previous: %{x:.2f}%<extra></extra>",
-            text=None
         )
         
-        # Compose the figure
-        fig_bar = go.Figure([bars_today, bars_overlay])
+        # Plotly Figure
+        fig_bar = go.Figure()
+        if bars_outline is not None:
+            fig_bar.add_trace(bars_outline)
+        fig_bar.add_trace(bars_today)
         
         fig_bar.update_layout(
             title={
@@ -563,6 +548,7 @@ with tab2:
             bargap=0.4,
             dragmode=False,
             height=600,
+            showlegend=False,
         )
         
         fig_bar.update_layout(
@@ -578,6 +564,7 @@ with tab2:
             'editable': False,
             'doubleClick': 'reset',
         })
+
 
 
 
