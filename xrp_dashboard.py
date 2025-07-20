@@ -566,6 +566,88 @@ with tab2:
         })
 
 
+    if os.path.exists(ACCOUNTS_CSV):
+        df = pd.read_csv(ACCOUNTS_CSV)
+        df["date"] = pd.to_datetime(df["date"])
+    
+        # Get all available dates, newest first for dropdown
+        available_dates = sorted(df["date"].dt.date.unique(), reverse=True)
+        st.markdown("### XRP Distribution by Account Balance Range (Bar Chart)")
+        sel_date = st.selectbox(
+            "📅 Select Date for XRP Distribution Chart:",
+            available_dates,
+            0,
+            key="date_bar_chart"
+        )
+        # Use only the selected date
+        df_br = df[df["date"].dt.date == sel_date].copy()
+    
+        # Keep the same balance range order (descending min_balance)
+        # Make sure to use the same Balance Range order as your table (descending min_balance)
+        def parse_lower(x):
+            try:
+                return float(x.split('-')[0].replace(',', '').strip())
+            except:
+                return 0
+        df_br['min_balance'] = df_br['Balance Range (XRP)'].apply(parse_lower)
+        df_br = df_br.sort_values('min_balance', ascending=False)  # <--- biggest at top
+        
+        # Calculate percentages
+        df_br["Sum in Range (XRP)"] = pd.to_numeric(df_br["Sum in Range (XRP)"].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
+        total_xrp = df_br["Sum in Range (XRP)"].sum()
+        df_br["% of All XRP in Circulation"] = df_br["Sum in Range (XRP)"] / total_xrp * 100
+        
+        bar_labels = df_br["Balance Range (XRP)"]
+        bar_values = df_br["% of All XRP in Circulation"]
+        bar_text = df_br["% of All XRP in Circulation"].map(lambda x: f"{x:.2f}%")
+        
+        fig_bar = go.Figure(go.Bar(
+            x=bar_values[::-1],      # <- no reversal
+            y=bar_labels[::-1],
+            orientation='h',
+            text=bar_text[::-1],
+            textposition='outside',
+            marker=dict(color='#FDBA21'),
+            textfont=dict(size=14),
+            hovertemplate="%{y}: %{x:.2f}%"
+        ))
+        fig_bar.update_layout(
+            title={
+                "text": "XRP Distribution by Balance Range",
+                "y": 0.95,
+                "x": 0.5,
+                "xanchor": "center",
+                "yanchor": "top",
+                "font": dict(size=22)
+            },
+            margin=dict(l=120, r=60, t=120, b=60),  # t=120 for more top margin
+            xaxis_title="% of All XRP in Circulation",
+            yaxis_title="Balance Range",
+            plot_bgcolor='#1e222d',
+            paper_bgcolor='#1e222d',
+            font=dict(color='#F1F1F1', size=16),
+            uniformtext_minsize=10,
+            uniformtext_mode='show',
+            bargap=0.4,
+            dragmode=False,
+            height=600, 
+        )
+
+        
+        fig_bar.update_layout(
+            xaxis=dict(fixedrange=True),
+            yaxis=dict(fixedrange=True)
+        )
+        fig_bar.update_traces(cliponaxis=False, textfont_size=12, insidetextanchor="end")
+        
+        st.plotly_chart(fig_bar, use_container_width=True, config={
+            'displayModeBar': False,
+            'staticPlot': False,
+            'scrollZoom': False,
+            'editable': False,
+            'doubleClick': 'reset',
+        })
+
 
 
 
