@@ -434,9 +434,12 @@ with tab2:
     import plotly.graph_objects as go
     
     if os.path.exists(ACCOUNTS_CSV):
+        import plotly.graph_objects as go
+        import pandas as pd
+        
         df = pd.read_csv(ACCOUNTS_CSV)
         df["date"] = pd.to_datetime(df["date"])
-    
+        
         # Get all available dates, newest first for dropdown
         available_dates = sorted(df["date"].dt.date.unique(), reverse=True)
         st.markdown("### XRP Distribution by Account Balance Range (Bar Chart)")
@@ -446,18 +449,25 @@ with tab2:
             0,
             key="date_bar_chart"
         )
-        # Use only the selected date
+        
+        # Use only the selected date, but also grab the previous day for comparison
         df_br = df[df["date"].dt.date == sel_date].copy()
-    
-        # Keep the same balance range order (descending min_balance)
-        # Make sure to use the same Balance Range order as your table (descending min_balance)
+        prev_dates = [d for d in available_dates if d < sel_date]
+        prior_date = max(prev_dates) if prev_dates else None
+        df_prev = df[df["date"].dt.date == prior_date].copy() if prior_date else None
+        
         def parse_lower(x):
             try:
                 return float(x.split('-')[0].replace(',', '').strip())
             except:
                 return 0
+        
+        # Sort both dataframes for correct order
         df_br['min_balance'] = df_br['Balance Range (XRP)'].apply(parse_lower)
-        df_br = df_br.sort_values('min_balance', ascending=False)  # <--- biggest at top
+        df_br = df_br.sort_values('min_balance', ascending=False)
+        if df_prev is not None and not df_prev.empty:
+            df_prev['min_balance'] = df_prev['Balance Range (XRP)'].apply(parse_lower)
+            df_prev = df_prev.sort_values('min_balance', ascending=False)
         
         # Calculate percentages
         df_br["Sum in Range (XRP)"] = pd.to_numeric(df_br["Sum in Range (XRP)"].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
@@ -468,16 +478,71 @@ with tab2:
         bar_values = df_br["% of All XRP in Circulation"]
         bar_text = df_br["% of All XRP in Circulation"].map(lambda x: f"{x:.2f}%")
         
-        fig_bar = go.Figure(go.Bar(
-            x=bar_values[::-1],      # <- no reversal
-            y=bar_labels[::-1],
+        # --- Calculate prior day's values for overlay ---
+        if df_prev is not None and not df_prev.empty:
+            df_prev["Sum in Range (XRP)"] = pd.to_numeric(df_prev["Sum in Range (XRP)"].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
+            total_xrp_prev = df_prev["Sum in Range (XRP)"].sum()
+            df_prev["% of All XRP in Circulation"] = df_prev["Sum in Range (XRP)"] / total_xrp_prev * 100
+        
+            # Match both frames on Balance Range (ensure same order)
+            df_br = df_br.reset_index(drop=True)
+            df_prev = df_prev.reset_index(drop=True)
+            prev_values = df_prev["% of All XRP in Circulation"]
+        else:
+            prev_values = pd.Series([None]*len(bar_labels), index=bar_labels.index)
+        
+        # Main bar for today
+        bars_today = go.Bar(
+            x=bar_values,
+            y=bar_labels,
             orientation='h',
-            text=bar_text[::-1],
+            text=bar_text,
             textposition='outside',
             marker=dict(color='#FDBA21'),
             textfont=dict(size=14),
+            name="Today",
             hovertemplate="%{y}: %{x:.2f}%"
-        ))
+        )
+        
+        # Overlay delta bar: green for increase, red for decrease
+        overlay_x = []
+        overlay_base = []
+        overlay_colors = []
+        
+        for curr, prev in zip(bar_values, prev_values):
+            if prev is None or pd.isna(prev):
+                overlay_x.append(0)
+                overlay_base.append(curr)
+                overlay_colors.append('rgba(0,0,0,0)')
+            elif curr > prev:
+                overlay_x.append(curr - prev)
+                overlay_base.append(prev)
+                overlay_colors.append("rgba(34,197,94,0.8)")   # green
+            elif curr < prev:
+                overlay_x.append(prev - curr)
+                overlay_base.append(curr)
+                overlay_colors.append("rgba(239,68,68,0.8)")  # red
+            else:
+                overlay_x.append(0)
+                overlay_base.append(curr)
+                overlay_colors.append('rgba(0,0,0,0)')
+        
+        bars_overlay = go.Bar(
+            x=overlay_x,
+            y=bar_labels,
+            base=overlay_base,
+            orientation='h',
+            marker=dict(color=overlay_colors),
+            showlegend=False,
+            hovertemplate=
+                "<b>%{y}</b><br>" +
+                "Δ from previous: %{x:.2f}%<extra></extra>",
+            text=None
+        )
+        
+        # Compose the figure
+        fig_bar = go.Figure([bars_today, bars_overlay])
+        
         fig_bar.update_layout(
             title={
                 "text": "XRP Distribution by Balance Range",
@@ -487,7 +552,7 @@ with tab2:
                 "yanchor": "top",
                 "font": dict(size=22)
             },
-            margin=dict(l=120, r=60, t=120, b=60),  # t=120 for more top margin
+            margin=dict(l=120, r=60, t=120, b=60),
             xaxis_title="% of All XRP in Circulation",
             yaxis_title="Balance Range",
             plot_bgcolor='#1e222d',
@@ -497,9 +562,8 @@ with tab2:
             uniformtext_mode='show',
             bargap=0.4,
             dragmode=False,
-            height=600, 
+            height=600,
         )
-
         
         fig_bar.update_layout(
             xaxis=dict(fixedrange=True),
