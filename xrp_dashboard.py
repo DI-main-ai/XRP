@@ -514,137 +514,137 @@ with tab2:
             'doubleClick': 'reset',
         })
     
-    if os.path.exists(ACCOUNTS_CSV):
-        df = pd.read_csv(ACCOUNTS_CSV)
-        df["date"] = pd.to_datetime(df["date"])
+    # if os.path.exists(ACCOUNTS_CSV):
+    #     df = pd.read_csv(ACCOUNTS_CSV)
+    #     df["date"] = pd.to_datetime(df["date"])
         
-        # Get all available dates, newest first for dropdown
-        available_dates = sorted(df["date"].dt.date.unique(), reverse=True)
-        st.markdown("### XRP Distribution by Account Balance Range (Bar Chart)")
-        sel_date = st.selectbox(
-            "📅 Select Date for XRP Distribution Chart:",
-            available_dates,
-            0,
-            key="date_bar_chart"
-        )
+    #     # Get all available dates, newest first for dropdown
+    #     available_dates = sorted(df["date"].dt.date.unique(), reverse=True)
+    #     st.markdown("### XRP Distribution by Account Balance Range (Bar Chart)")
+    #     sel_date = st.selectbox(
+    #         "📅 Select Date for XRP Distribution Chart:",
+    #         available_dates,
+    #         0,
+    #         key="date_bar_chart"
+    #     )
         
-        # Get today and yesterday's rows
-        df_br = df[df["date"].dt.date == sel_date].copy()
-        prev_dates = [d for d in available_dates if d < sel_date]
-        prior_date = max(prev_dates) if prev_dates else None
-        df_prev = df[df["date"].dt.date == prior_date].copy() if prior_date else None
+    #     # Get today and yesterday's rows
+    #     df_br = df[df["date"].dt.date == sel_date].copy()
+    #     prev_dates = [d for d in available_dates if d < sel_date]
+    #     prior_date = max(prev_dates) if prev_dates else None
+    #     df_prev = df[df["date"].dt.date == prior_date].copy() if prior_date else None
         
-        def parse_lower(x):
-            try:
-                return float(x.split('-')[0].replace(',', '').strip())
-            except:
-                return 0
+    #     def parse_lower(x):
+    #         try:
+    #             return float(x.split('-')[0].replace(',', '').strip())
+    #         except:
+    #             return 0
         
-        # --- Sorting (reverse y order) ---
-        df_br['min_balance'] = df_br['Balance Range (XRP)'].apply(parse_lower)
-        df_br = df_br.sort_values('min_balance', ascending=True)  # <-- ascending for bottom-to-top
-        if df_prev is not None and not df_prev.empty:
-            df_prev['min_balance'] = df_prev['Balance Range (XRP)'].apply(parse_lower)
-            df_prev = df_prev.sort_values('min_balance', ascending=True)
+    #     # --- Sorting (reverse y order) ---
+    #     df_br['min_balance'] = df_br['Balance Range (XRP)'].apply(parse_lower)
+    #     df_br = df_br.sort_values('min_balance', ascending=True)  # <-- ascending for bottom-to-top
+    #     if df_prev is not None and not df_prev.empty:
+    #         df_prev['min_balance'] = df_prev['Balance Range (XRP)'].apply(parse_lower)
+    #         df_prev = df_prev.sort_values('min_balance', ascending=True)
         
-        # Percentages
-        df_br["Sum in Range (XRP)"] = pd.to_numeric(df_br["Sum in Range (XRP)"].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
-        total_xrp = df_br["Sum in Range (XRP)"].sum()
-        df_br["% of All XRP in Circulation"] = df_br["Sum in Range (XRP)"] / total_xrp * 100
+    #     # Percentages
+    #     df_br["Sum in Range (XRP)"] = pd.to_numeric(df_br["Sum in Range (XRP)"].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
+    #     total_xrp = df_br["Sum in Range (XRP)"].sum()
+    #     df_br["% of All XRP in Circulation"] = df_br["Sum in Range (XRP)"] / total_xrp * 100
         
-        bar_labels = df_br["Balance Range (XRP)"]
-        bar_values = df_br["% of All XRP in Circulation"]
-        bar_text = df_br["% of All XRP in Circulation"].map(lambda x: f"{x:.2f}%")
+    #     bar_labels = df_br["Balance Range (XRP)"]
+    #     bar_values = df_br["% of All XRP in Circulation"]
+    #     bar_text = df_br["% of All XRP in Circulation"].map(lambda x: f"{x:.2f}%")
         
-        # Prior day overlay as an outline
-        if df_prev is not None and not df_prev.empty:
-            df_prev["Sum in Range (XRP)"] = pd.to_numeric(df_prev["Sum in Range (XRP)"].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
-            total_xrp_prev = df_prev["Sum in Range (XRP)"].sum()
-            df_prev["% of All XRP in Circulation"] = df_prev["Sum in Range (XRP)"] / total_xrp_prev * 100
+    #     # Prior day overlay as an outline
+    #     if df_prev is not None and not df_prev.empty:
+    #         df_prev["Sum in Range (XRP)"] = pd.to_numeric(df_prev["Sum in Range (XRP)"].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
+    #         total_xrp_prev = df_prev["Sum in Range (XRP)"].sum()
+    #         df_prev["% of All XRP in Circulation"] = df_prev["Sum in Range (XRP)"] / total_xrp_prev * 100
         
-            df_br = df_br.reset_index(drop=True)
-            df_prev = df_prev.reset_index(drop=True)
-            prev_values = df_prev["% of All XRP in Circulation"]
+    #         df_br = df_br.reset_index(drop=True)
+    #         df_prev = df_prev.reset_index(drop=True)
+    #         prev_values = df_prev["% of All XRP in Circulation"]
         
-            # Outlines: the prior day's bars as a thin transparent bar with a colored outline
-            bars_outline = go.Bar(
-                x=prev_values,
-                y=bar_labels,
-                orientation='h',
-                marker=dict(
-                    color='rgba(0,0,0,0)',
-                    line=dict(
-                        color=[
-                            "rgba(34,197,94,1)" if curr > prev else
-                            "rgba(239,68,68,1)" if curr < prev else
-                            "rgba(200,200,200,0.6)"
-                            for curr, prev in zip(bar_values, prev_values)
-                        ],
-                        width=6,   # Thickness of outline
-                    )
-                ),
-                hoverinfo='skip',
-                showlegend=False,
-                opacity=1,
-            )
-        else:
-            bars_outline = None
+    #         # Outlines: the prior day's bars as a thin transparent bar with a colored outline
+    #         bars_outline = go.Bar(
+    #             x=prev_values,
+    #             y=bar_labels,
+    #             orientation='h',
+    #             marker=dict(
+    #                 color='rgba(0,0,0,0)',
+    #                 line=dict(
+    #                     color=[
+    #                         "rgba(34,197,94,1)" if curr > prev else
+    #                         "rgba(239,68,68,1)" if curr < prev else
+    #                         "rgba(200,200,200,0.6)"
+    #                         for curr, prev in zip(bar_values, prev_values)
+    #                     ],
+    #                     width=6,   # Thickness of outline
+    #                 )
+    #             ),
+    #             hoverinfo='skip',
+    #             showlegend=False,
+    #             opacity=1,
+    #         )
+    #     else:
+    #         bars_outline = None
         
-        # Today's main bars
-        bars_today = go.Bar(
-            x=bar_values,
-            y=bar_labels,
-            orientation='h',
-            text=bar_text,
-            textposition='outside',
-            marker=dict(color='#FDBA21'),
-            textfont=dict(size=14),
-            hovertemplate="%{y}: %{x:.2f}%",
-            showlegend=False,
-        )
+    #     # Today's main bars
+    #     bars_today = go.Bar(
+    #         x=bar_values,
+    #         y=bar_labels,
+    #         orientation='h',
+    #         text=bar_text,
+    #         textposition='outside',
+    #         marker=dict(color='#FDBA21'),
+    #         textfont=dict(size=14),
+    #         hovertemplate="%{y}: %{x:.2f}%",
+    #         showlegend=False,
+    #     )
         
-        # Plotly Figure
-        fig_bar = go.Figure()
-        if bars_outline is not None:
-            fig_bar.add_trace(bars_outline)
-        fig_bar.add_trace(bars_today)
+    #     # Plotly Figure
+    #     fig_bar = go.Figure()
+    #     if bars_outline is not None:
+    #         fig_bar.add_trace(bars_outline)
+    #     fig_bar.add_trace(bars_today)
         
-        fig_bar.update_layout(
-            title={
-                "text": "XRP Distribution by Balance Range",
-                "y": 0.95,
-                "x": 0.5,
-                "xanchor": "center",
-                "yanchor": "top",
-                "font": dict(size=22)
-            },
-            margin=dict(l=120, r=60, t=120, b=60),
-            xaxis_title="% of All XRP in Circulation",
-            yaxis_title="Balance Range",
-            plot_bgcolor='#1e222d',
-            paper_bgcolor='#1e222d',
-            font=dict(color='#F1F1F1', size=16),
-            uniformtext_minsize=10,
-            uniformtext_mode='show',
-            bargap=0.4,
-            dragmode=False,
-            height=600,
-            showlegend=False,
-        )
+    #     fig_bar.update_layout(
+    #         title={
+    #             "text": "XRP Distribution by Balance Range",
+    #             "y": 0.95,
+    #             "x": 0.5,
+    #             "xanchor": "center",
+    #             "yanchor": "top",
+    #             "font": dict(size=22)
+    #         },
+    #         margin=dict(l=120, r=60, t=120, b=60),
+    #         xaxis_title="% of All XRP in Circulation",
+    #         yaxis_title="Balance Range",
+    #         plot_bgcolor='#1e222d',
+    #         paper_bgcolor='#1e222d',
+    #         font=dict(color='#F1F1F1', size=16),
+    #         uniformtext_minsize=10,
+    #         uniformtext_mode='show',
+    #         bargap=0.4,
+    #         dragmode=False,
+    #         height=600,
+    #         showlegend=False,
+    #     )
         
-        fig_bar.update_layout(
-            xaxis=dict(fixedrange=True),
-            yaxis=dict(fixedrange=True)
-        )
-        fig_bar.update_traces(cliponaxis=False, textfont_size=12, insidetextanchor="end")
+    #     fig_bar.update_layout(
+    #         xaxis=dict(fixedrange=True),
+    #         yaxis=dict(fixedrange=True)
+    #     )
+    #     fig_bar.update_traces(cliponaxis=False, textfont_size=12, insidetextanchor="end")
         
-        st.plotly_chart(fig_bar, use_container_width=True, config={
-            'displayModeBar': False,
-            'staticPlot': False,
-            'scrollZoom': False,
-            'editable': False,
-            'doubleClick': 'reset',
-        })
+    #     st.plotly_chart(fig_bar, use_container_width=True, config={
+    #         'displayModeBar': False,
+    #         'staticPlot': False,
+    #         'scrollZoom': False,
+    #         'editable': False,
+    #         'doubleClick': 'reset',
+    #     })
 
 
 
