@@ -486,7 +486,7 @@ with tab2:
     #             "yanchor": "top",
     #             "font": dict(size=22)
     #         },
-    #         margin=dict(l=120, r=60, t=120, b=60),  # t=120 for more top margin
+    #         margin=dict(l=120, r=60, t=40, b=60),  # t=120 for more top margin
     #         xaxis_title="% of All XRP in Circulation",
     #         yaxis_title="Balance Range",
     #         plot_bgcolor='#1e222d',
@@ -556,6 +556,16 @@ with tab2:
             available_dates,
             0,
             key="date_bar_chart"
+        )
+        prev_date_str = prior_date.strftime("%Y-%m-%d") if prior_date else "N/A"
+        curr_date_str = sel_date.strftime("%Y-%m-%d")
+        
+        st.markdown(
+            f'<div style="margin-bottom:10px;">'
+            f'<b>Date:</b> {curr_date_str} '
+            f'(compared to <b>{prev_date_str}</b>)'
+            f'</div>',
+            unsafe_allow_html=True
         )
     
         df_br = df[df["date"].dt.date == sel_date].copy()
@@ -696,7 +706,7 @@ with tab2:
                 "yanchor": "top",
                 "font": dict(size=22)
             },
-            margin=dict(l=120, r=60, t=120, b=60),
+            margin=dict(l=120, r=60, t=40, b=60),
             xaxis_title="% of All XRP in Circulation",
             yaxis_title="Balance Range",
             plot_bgcolor='#1e222d',
