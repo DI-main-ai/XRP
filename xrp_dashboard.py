@@ -613,27 +613,35 @@ with tab2:
         label_positions = []
         bar_texts = []
         hover_custom = []
-    
+        
         for i in range(len(bar_labels)):
             curr = today_values[i]
             prev = prev_values[i]
             srange = sum_in_range[i]
             delta = curr - prev
+            delta_rounded = np.round(delta, 2)
+            # Determine which is the "base" and which is the "delta"
             if curr >= prev:
                 base_values.append(prev)
                 delta_values.append(curr - prev)
-                delta_colors.append('limegreen' if delta > 0 else None)
+                delta_colors.append('limegreen' if delta > 0 else '#FDBA21')  # If no change, keep yellow
                 label_positions.append(curr)
             else:
                 base_values.append(curr)
                 delta_values.append(prev - curr)
-                delta_colors.append('crimson' if delta < 0 else None)
+                delta_colors.append('crimson' if delta < 0 else '#FDBA21')
                 label_positions.append(prev)
-            # Chart label is always placed at the end of the *total* bar
             bar_texts.append(f"{label_positions[-1]:.2f}%")
-            hover_custom.append((srange, delta))
-    
-        # Main base bar (always yellow, min(today, prev))
+            hover_custom.append((srange, delta_rounded))
+        
+        # Create hovertemplate
+        hovertemplate = (
+            "<b>BR:</b>&nbsp;&nbsp; %{y}<br>" +
+            "<b>Total XRP:</b>&nbsp;&nbsp; %{customdata[0]:,.4f}<br>" +
+            "<b>Δ % from Prev Day:</b>&nbsp;&nbsp; %{customdata[1]:+,.2f}%<extra></extra>"
+        )
+        
+        # Main base bar (always yellow, min(today, prev)), now gets hoverinfo and text too
         bars_base = go.Bar(
             x=base_values,
             y=bar_labels,
@@ -642,10 +650,11 @@ with tab2:
             width=0.7,
             showlegend=False,
             text=None,
-            hoverinfo='skip',
+            hovertemplate=hovertemplate,
+            customdata=hover_custom,
         )
-    
-        # Overlay (delta) bar, red/green
+        
+        # Overlay (delta) bar, red/green, gets hover as well
         overlays = go.Bar(
             x=delta_values,
             y=bar_labels,
@@ -657,14 +666,11 @@ with tab2:
             text=bar_texts,
             textposition='outside',
             textfont=dict(size=14),
-            hovertemplate=(
-                "<b>BR:</b>&nbsp;&nbsp; %{y}<br>" +
-                "<b>Total XRP:</b>&nbsp;&nbsp; %{customdata[0]:,.4f}<br>" +
-                "<b>Δ % from Prev Day:</b>&nbsp;&nbsp; %{customdata[1]:+,.2f}%<extra></extra>"
-            ),
+            hovertemplate=hovertemplate,
             customdata=hover_custom,
             cliponaxis=True,
         )
+
     
         fig_bar = go.Figure()
         fig_bar.add_trace(bars_base)
