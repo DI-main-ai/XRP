@@ -557,6 +557,9 @@ with tab2:
             0,
             key="date_bar_chart"
         )
+        prev_dates = [d for d in available_dates if d < sel_date]
+        prior_date = max(prev_dates) if prev_dates else None
+        
         prev_date_str = prior_date.strftime("%Y-%m-%d") if prior_date else "N/A"
         curr_date_str = sel_date.strftime("%Y-%m-%d")
         
@@ -567,10 +570,7 @@ with tab2:
             f'</div>',
             unsafe_allow_html=True
         )
-    
-        df_br = df[df["date"].dt.date == sel_date].copy()
-        prev_dates = [d for d in available_dates if d < sel_date]
-        prior_date = max(prev_dates) if prev_dates else None
+
         df_prev = df[df["date"].dt.date == prior_date].copy() if prior_date else None
     
         # Clean and sort both DataFrames in the fixed order
