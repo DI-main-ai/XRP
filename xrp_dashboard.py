@@ -518,6 +518,7 @@ with tab2:
 
     
     
+    
     if os.path.exists(ACCOUNTS_CSV):
         df = pd.read_csv(ACCOUNTS_CSV)
         df["date"] = pd.to_datetime(df["date"])
@@ -579,8 +580,8 @@ with tab2:
         prev_values = merged["% of All XRP in Circulation_prev"]
         sum_in_range = merged["Sum in Range (XRP)"]
     
-        # Adjust max_x for margin (makes room for full text)
-        max_x = max(today_values.max(), prev_values.max()) * 1.18
+        # Adjust max_x for margin (makes room for full text and overlays)
+        max_x = max(today_values.max(), prev_values.max()) * 1.25
     
         # Main bar (today)
         bars_today = go.Bar(
@@ -588,7 +589,7 @@ with tab2:
             y=bar_labels,
             orientation='h',
             text=[f"{v:.2f}%" for v in today_values],
-            textposition='auto',
+            textposition='outside',
             marker=dict(color='#FDBA21'),
             textfont=dict(size=14),
             hovertemplate=(
@@ -601,13 +602,13 @@ with tab2:
             width=0.7,
         )
     
-        # Delta overlays: Always drawn at the end of today's bar, tiny width for green (growth tick), extend for red (decrease)
+        # Delta overlays: full thickness, at the end of today's bar, scaled by change
         overlay_traces = []
-        overlay_width = 0.16
+        overlay_width = 0.7  # Full height/thickness as main bar
         for label, curr, prev in zip(bar_labels, today_values, prev_values):
             delta = curr - prev
             if abs(delta) > 0.005:
-                # For decreases: show a thin red bar starting at curr, going to prev (if prev > curr)
+                # For decreases: show a full thick red bar at curr, extending to prev
                 if delta < 0:
                     overlay_traces.append(go.Bar(
                         x=[abs(delta)],
@@ -621,13 +622,13 @@ with tab2:
                         text=None,
                         cliponaxis=True,
                     ))
-                # For increases: show a tiny green bar at end of today's bar (almost a "tick mark")
+                # For increases: show a full thick green bar at prev, extending to curr
                 elif delta > 0:
                     overlay_traces.append(go.Bar(
-                        x=[min(delta, max_x*0.01)],  # Very small tick
+                        x=[delta],
                         y=[label],
                         orientation='h',
-                        base=[curr - min(delta, max_x*0.01)],
+                        base=[prev],
                         marker=dict(color='limegreen'),
                         width=overlay_width,
                         showlegend=False,
@@ -638,9 +639,10 @@ with tab2:
     
         # Plot
         fig_bar = go.Figure()
-        fig_bar.add_trace(bars_today)
+        # Plot overlays first so yellow bar is on top (better for hover/label visibility)
         for trace in overlay_traces:
             fig_bar.add_trace(trace)
+        fig_bar.add_trace(bars_today)
     
         fig_bar.update_layout(
             title={
@@ -651,7 +653,7 @@ with tab2:
                 "yanchor": "top",
                 "font": dict(size=22)
             },
-            margin=dict(l=120, r=100, t=120, b=60),  # extra right margin for labels
+            margin=dict(l=120, r=120, t=120, b=60),  # more right margin for long labels
             xaxis_title="% of All XRP in Circulation",
             yaxis_title="Balance Range",
             plot_bgcolor='#1e222d',
@@ -676,6 +678,7 @@ with tab2:
             'editable': False,
             'doubleClick': 'reset',
         })
+
 
 
 
