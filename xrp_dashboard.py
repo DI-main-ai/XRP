@@ -688,6 +688,7 @@ with tab2:
             uniformtext_minsize=10,
             uniformtext_mode='show',
             bargap=0.45,
+            barmode='stack',
             dragmode=False,
             height=660,
             showlegend=False,
