@@ -709,7 +709,7 @@ with tab2:
             dragmode=False,
             height=600,
             showlegend=False,
-            xaxis=dict(range=[0, max_x + 3], fixedrange=True),
+            xaxis=dict(range=[0, max_x + 5], fixedrange=True),
             yaxis=dict(fixedrange=True),
         )
     
