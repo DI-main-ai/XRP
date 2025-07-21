@@ -519,9 +519,33 @@ with tab2:
     
     
     
+
+    
     if os.path.exists(ACCOUNTS_CSV):
         df = pd.read_csv(ACCOUNTS_CSV)
         df["date"] = pd.to_datetime(df["date"])
+    
+        # List your balance ranges in desired order, largest first (top) to smallest (bottom)
+        fixed_order = [
+            "1,000,000,000 - Infinity",
+            "500,000,000 - 1,000,000,000",
+            "100,000,000 - 500,000,000",
+            "20,000,000 - 100,000,000",
+            "10,000,000 - 20,000,000",
+            "5,000,000 - 10,000,000",
+            "1,000,000 - 5,000,000",
+            "500,000 - 1,000,000",
+            "100,000 - 500,000",
+            "75,000 - 100,000",
+            "50,000 - 75,000",
+            "25,000 - 50,000",
+            "10,000 - 25,000",
+            "5,000 - 10,000",
+            "1,000 - 5,000",
+            "500 - 1,000",
+            "20 - 500",
+            "0 - 20"
+        ]
     
         # Get all available dates, newest first for dropdown
         available_dates = sorted(df["date"].dt.date.unique(), reverse=True)
@@ -539,21 +563,18 @@ with tab2:
         prior_date = max(prev_dates) if prev_dates else None
         df_prev = df[df["date"].dt.date == prior_date].copy() if prior_date else None
     
-        def parse_lower(x):
-            try:
-                return float(x.split('-')[0].replace(',', '').strip())
-            except:
-                return 0
-    
-        df_br['min_balance'] = df_br['Balance Range (XRP)'].apply(parse_lower)
-        df_br = df_br.sort_values('min_balance', ascending=True)
+        # Clean and sort both DataFrames in the fixed order
+        df_br = df_br[df_br["Balance Range (XRP)"].isin(fixed_order)].copy()
+        df_br["Balance Range (XRP)"] = pd.Categorical(df_br["Balance Range (XRP)"], categories=fixed_order, ordered=True)
+        df_br = df_br.sort_values("Balance Range (XRP)", ascending=False)
         df_br["Sum in Range (XRP)"] = pd.to_numeric(df_br["Sum in Range (XRP)"].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
         total_xrp = df_br["Sum in Range (XRP)"].sum()
         df_br["% of All XRP in Circulation"] = df_br["Sum in Range (XRP)"] / total_xrp * 100
     
         if df_prev is not None and not df_prev.empty:
-            df_prev['min_balance'] = df_prev['Balance Range (XRP)'].apply(parse_lower)
-            df_prev = df_prev.sort_values('min_balance', ascending=True)
+            df_prev = df_prev[df_prev["Balance Range (XRP)"].isin(fixed_order)].copy()
+            df_prev["Balance Range (XRP)"] = pd.Categorical(df_prev["Balance Range (XRP)"], categories=fixed_order, ordered=True)
+            df_prev = df_prev.sort_values("Balance Range (XRP)", ascending=False)
             df_prev["Sum in Range (XRP)"] = pd.to_numeric(df_prev["Sum in Range (XRP)"].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
             total_xrp_prev = df_prev["Sum in Range (XRP)"].sum()
             df_prev["% of All XRP in Circulation"] = df_prev["Sum in Range (XRP)"] / total_xrp_prev * 100
@@ -575,13 +596,16 @@ with tab2:
             merged["% of All XRP in Circulation_prev"] = 0
             merged["% of All XRP in Circulation_today"] = merged["% of All XRP in Circulation"]
     
+        # Sort merged in fixed order for plotting
+        merged["Balance Range (XRP)"] = pd.Categorical(merged["Balance Range (XRP)"], categories=fixed_order, ordered=True)
+        merged = merged.sort_values("Balance Range (XRP)", ascending=False)
+    
         bar_labels = merged["Balance Range (XRP)"]
         today_values = merged["% of All XRP in Circulation_today"]
         prev_values = merged["% of All XRP in Circulation_prev"]
         sum_in_range = merged["Sum in Range (XRP)"]
     
-        # Adjust max_x for margin (makes room for full text and overlays)
-        max_x = max(today_values.max(), prev_values.max()) * 1.25
+        max_x = max(today_values.max(), prev_values.max()) * 1.20
     
         # Main bar (today)
         bars_today = go.Bar(
@@ -602,47 +626,31 @@ with tab2:
             width=0.7,
         )
     
-        # Delta overlays: full thickness, at the end of today's bar, scaled by change
+        # Overlay bars (drawn last to appear on top)
         overlay_traces = []
-        overlay_width = 0.7  # Full height/thickness as main bar
+        overlay_width = 0.7  # same as main bar
         for label, curr, prev in zip(bar_labels, today_values, prev_values):
             delta = curr - prev
             if abs(delta) > 0.005:
-                # For decreases: show a full thick red bar at curr, extending to prev
-                if delta < 0:
-                    overlay_traces.append(go.Bar(
-                        x=[abs(delta)],
-                        y=[label],
-                        orientation='h',
-                        base=[curr],
-                        marker=dict(color='crimson'),
-                        width=overlay_width,
-                        showlegend=False,
-                        hoverinfo='skip',
-                        text=None,
-                        cliponaxis=True,
-                    ))
-                # For increases: show a full thick green bar at prev, extending to curr
-                elif delta > 0:
-                    overlay_traces.append(go.Bar(
-                        x=[delta],
-                        y=[label],
-                        orientation='h',
-                        base=[prev],
-                        marker=dict(color='limegreen'),
-                        width=overlay_width,
-                        showlegend=False,
-                        hoverinfo='skip',
-                        text=None,
-                        cliponaxis=True,
-                    ))
+                # Overlay always starts at min(curr, prev) and covers the absolute difference
+                overlay_traces.append(go.Bar(
+                    x=[abs(delta)],
+                    y=[label],
+                    orientation='h',
+                    base=[min(curr, prev)],
+                    marker=dict(color='limegreen' if delta > 0 else 'crimson'),
+                    width=overlay_width,
+                    showlegend=False,
+                    hoverinfo='skip',
+                    text=None,
+                    cliponaxis=True,
+                ))
     
-        # Plot
+        # Plot: overlays last so they're "on top"
         fig_bar = go.Figure()
-        # Plot overlays first so yellow bar is on top (better for hover/label visibility)
+        fig_bar.add_trace(bars_today)
         for trace in overlay_traces:
             fig_bar.add_trace(trace)
-        fig_bar.add_trace(bars_today)
     
         fig_bar.update_layout(
             title={
@@ -653,7 +661,7 @@ with tab2:
                 "yanchor": "top",
                 "font": dict(size=22)
             },
-            margin=dict(l=120, r=120, t=120, b=60),  # more right margin for long labels
+            margin=dict(l=120, r=120, t=120, b=60),
             xaxis_title="% of All XRP in Circulation",
             yaxis_title="Balance Range",
             plot_bgcolor='#1e222d',
@@ -663,7 +671,7 @@ with tab2:
             uniformtext_mode='show',
             bargap=0.45,
             dragmode=False,
-            height=600,
+            height=660,
             showlegend=False,
             xaxis=dict(range=[0, max_x], fixedrange=True),
             yaxis=dict(fixedrange=True),
@@ -678,6 +686,7 @@ with tab2:
             'editable': False,
             'doubleClick': 'reset',
         })
+
 
 
 
