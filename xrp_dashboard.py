@@ -557,20 +557,21 @@ with tab2:
     
             # Align on Balance Range
             merged = pd.merge(
-                df_br[["Balance Range (XRP)", "% of All XRP in Circulation"]],
+                df_br[["Balance Range (XRP)", "Sum in Range (XRP)", "% of All XRP in Circulation"]],
                 df_prev[["Balance Range (XRP)", "% of All XRP in Circulation"]],
                 on="Balance Range (XRP)",
                 how="left",
                 suffixes=("_today", "_prev")
             )
-            merged = merged.fillna(0)  # Just in case
+            merged = merged.fillna(0)
         else:
-            merged = df_br[["Balance Range (XRP)", "% of All XRP in Circulation"]].copy()
+            merged = df_br[["Balance Range (XRP)", "Sum in Range (XRP)", "% of All XRP in Circulation"]].copy()
             merged["% of All XRP in Circulation_prev"] = 0
     
         bar_labels = merged["Balance Range (XRP)"]
-        today_values = merged["% of All XRP in Circulation_today"]
+        today_values = merged["% of All XRP in Circulation"]
         prev_values = merged["% of All XRP in Circulation_prev"]
+        sum_in_range = merged["Sum in Range (XRP)"]
     
         # Main bar (today)
         bars_today = go.Bar(
@@ -581,49 +582,34 @@ with tab2:
             textposition='outside',
             marker=dict(color='#FDBA21'),
             textfont=dict(size=14),
-            hovertemplate="%{y}: %{x:.2f}%",
+            hovertemplate=(
+                "BR: %{y}<br>" +
+                "Total XRP: %{customdata[0]:,.4f}<br>" +
+                "Δ % from Prev Day: %{customdata[1]:+,.2f}%<extra></extra>"
+            ),
+            customdata=list(zip(sum_in_range, today_values - prev_values)),
             showlegend=False,
             width=0.7,
         )
     
-        # Delta overlays
+        # Delta overlays: Draw a small in-line bar at the right edge of each main bar
         overlay_traces = []
+        overlay_width = 0.18  # Make overlay bar thinner than main bar
         for label, curr, prev in zip(bar_labels, today_values, prev_values):
             delta = curr - prev
-            # Show only if prev exists (not 0) and if there was a change
-            if abs(delta) > 0.01:
-                # If today < prev, show red bar at the END of today's bar, extending out
-                if delta < 0:
-                    overlay_traces.append(go.Bar(
-                        x=[-delta],
-                        y=[label],
-                        orientation='h',
-                        base=[curr],
-                        marker=dict(color='crimson'),
-                        width=0.45,
-                        showlegend=False,
-                        hoverinfo="skip",
-                        text=[f"{delta:.2f}%"],
-                        textposition="outside",
-                        textfont=dict(color="white", size=14),
-                        cliponaxis=False,
-                    ))
-                # If today > prev, show green bar AT THE END of previous bar, up to today's bar (overlayed within bar, but from prev to curr)
-                elif delta > 0:
-                    overlay_traces.append(go.Bar(
-                        x=[delta],
-                        y=[label],
-                        orientation='h',
-                        base=[prev],
-                        marker=dict(color='limegreen'),
-                        width=0.45,
-                        showlegend=False,
-                        hoverinfo="skip",
-                        text=[f"+{delta:.2f}%"],
-                        textposition="inside",
-                        textfont=dict(color="white", size=14),
-                        cliponaxis=False,
-                    ))
+            if abs(delta) > 0.005:
+                overlay_traces.append(go.Bar(
+                    x=[abs(delta)],
+                    y=[label],
+                    orientation='h',
+                    base=[min(curr, prev)],
+                    marker=dict(color='limegreen' if delta > 0 else 'crimson'),
+                    width=overlay_width,
+                    showlegend=False,
+                    hoverinfo='skip',
+                    text=None,  # No text label on overlay
+                    cliponaxis=True,
+                ))
     
         # Plot
         fig_bar = go.Figure()
@@ -658,7 +644,7 @@ with tab2:
             xaxis=dict(fixedrange=True),
             yaxis=dict(fixedrange=True)
         )
-        fig_bar.update_traces(cliponaxis=False, textfont_size=12, insidetextanchor="end")
+        fig_bar.update_traces(cliponaxis=True, textfont_size=12, insidetextanchor="end")
     
         st.plotly_chart(fig_bar, use_container_width=True, config={
             'displayModeBar': False,
@@ -667,6 +653,7 @@ with tab2:
             'editable': False,
             'doubleClick': 'reset',
         })
+
 
 
 
