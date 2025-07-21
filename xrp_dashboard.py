@@ -586,7 +586,13 @@ with tab2:
                 on="Balance Range (XRP)",
                 how="left",
                 suffixes=("_today", "_prev")
-            ).fillna(0)
+            )
+    
+            # Only fill NaN in the numeric columns, not the categorical
+            for col in ["Sum in Range (XRP)", "% of All XRP in Circulation_today", "% of All XRP in Circulation_prev"]:
+                if col in merged.columns:
+                    merged[col] = merged[col].fillna(0)
+
             if "% of All XRP in Circulation_today" not in merged.columns:
                 merged["% of All XRP in Circulation_today"] = merged["% of All XRP in Circulation"]
             if "% of All XRP in Circulation_prev" not in merged.columns:
