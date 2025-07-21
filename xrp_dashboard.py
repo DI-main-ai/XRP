@@ -566,8 +566,8 @@ with tab2:
         
         st.markdown(
             f'<div style="margin-bottom:10px;">'
-            f'<b>Date:</b> {curr_date_str} '
-            f'(compared to <b>{prev_date_str}</b>)'
+            f'<span style="color:#aaa;"><b>Date:</b> {curr_date_str} '
+            f'(compared to <b>{prev_date_str}</b>)</span>'
             f'</div>',
             unsafe_allow_html=True
         )
