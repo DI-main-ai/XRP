@@ -707,7 +707,7 @@ with tab2:
                 "yanchor": "top",
                 "font": dict(size=22)
             },
-            margin=dict(l=120, r=60, t=60, b=60),
+            margin=dict(l=120, r=60, t=75, b=60),
             xaxis_title="% of All XRP in Circulation",
             yaxis_title="Balance Range",
             plot_bgcolor='#1e222d',
