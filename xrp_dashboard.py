@@ -521,11 +521,13 @@ with tab2:
     
 
     
+
+    
     if os.path.exists(ACCOUNTS_CSV):
         df = pd.read_csv(ACCOUNTS_CSV)
         df["date"] = pd.to_datetime(df["date"])
     
-        # List your balance ranges in desired order, largest first (top) to smallest (bottom)
+        # Fixed order for y-axis
         fixed_order = [
             "1,000,000,000 - Infinity",
             "500,000,000 - 1,000,000,000",
@@ -547,7 +549,6 @@ with tab2:
             "0 - 20"
         ]
     
-        # Get all available dates, newest first for dropdown
         available_dates = sorted(df["date"].dt.date.unique(), reverse=True)
         st.markdown("### XRP Distribution by Account Balance Range (Bar Chart)")
         sel_date = st.selectbox(
@@ -557,7 +558,6 @@ with tab2:
             key="date_bar_chart"
         )
     
-        # Get today and yesterday's rows
         df_br = df[df["date"].dt.date == sel_date].copy()
         prev_dates = [d for d in available_dates if d < sel_date]
         prior_date = max(prev_dates) if prev_dates else None
@@ -579,7 +579,6 @@ with tab2:
             total_xrp_prev = df_prev["Sum in Range (XRP)"].sum()
             df_prev["% of All XRP in Circulation"] = df_prev["Sum in Range (XRP)"] / total_xrp_prev * 100
     
-            # Align on Balance Range
             merged = pd.merge(
                 df_br[["Balance Range (XRP)", "Sum in Range (XRP)", "% of All XRP in Circulation"]],
                 df_prev[["Balance Range (XRP)", "% of All XRP in Circulation"]],
@@ -592,71 +591,84 @@ with tab2:
             for col in ["Sum in Range (XRP)", "% of All XRP in Circulation_today", "% of All XRP in Circulation_prev"]:
                 if col in merged.columns:
                     merged[col] = merged[col].fillna(0)
-
-            if "% of All XRP in Circulation_today" not in merged.columns:
-                merged["% of All XRP in Circulation_today"] = merged["% of All XRP in Circulation"]
-            if "% of All XRP in Circulation_prev" not in merged.columns:
-                merged["% of All XRP in Circulation_prev"] = 0
         else:
             merged = df_br[["Balance Range (XRP)", "Sum in Range (XRP)", "% of All XRP in Circulation"]].copy()
             merged["% of All XRP in Circulation_prev"] = 0
             merged["% of All XRP in Circulation_today"] = merged["% of All XRP in Circulation"]
     
-        # Sort merged in fixed order for plotting
         merged["Balance Range (XRP)"] = pd.Categorical(merged["Balance Range (XRP)"], categories=fixed_order, ordered=True)
         merged = merged.sort_values("Balance Range (XRP)", ascending=False)
     
         bar_labels = merged["Balance Range (XRP)"]
-        today_values = merged["% of All XRP in Circulation_today"]
-        prev_values = merged["% of All XRP in Circulation_prev"]
-        sum_in_range = merged["Sum in Range (XRP)"]
+        today_values = merged["% of All XRP in Circulation_today"].values
+        prev_values = merged["% of All XRP in Circulation_prev"].values
+        sum_in_range = merged["Sum in Range (XRP)"].values
     
         max_x = max(today_values.max(), prev_values.max()) * 1.20
     
-        # Main bar (today)
-        bars_today = go.Bar(
-            x=today_values,
+        # Composite bars: always draw the smaller first (yellow), then overlay the delta (red/green), with label at the end of the delta
+        base_values = []
+        delta_values = []
+        delta_colors = []
+        label_positions = []
+        bar_texts = []
+        hover_custom = []
+    
+        for i in range(len(bar_labels)):
+            curr = today_values[i]
+            prev = prev_values[i]
+            srange = sum_in_range[i]
+            delta = curr - prev
+            if curr >= prev:
+                base_values.append(prev)
+                delta_values.append(curr - prev)
+                delta_colors.append('limegreen' if delta > 0 else None)
+                label_positions.append(curr)
+            else:
+                base_values.append(curr)
+                delta_values.append(prev - curr)
+                delta_colors.append('crimson' if delta < 0 else None)
+                label_positions.append(prev)
+            # Chart label is always placed at the end of the *total* bar
+            bar_texts.append(f"{label_positions[-1]:.2f}%")
+            hover_custom.append((srange, delta))
+    
+        # Main base bar (always yellow, min(today, prev))
+        bars_base = go.Bar(
+            x=base_values,
             y=bar_labels,
             orientation='h',
-            text=[f"{v:.2f}%" for v in today_values],
-            textposition='outside',
             marker=dict(color='#FDBA21'),
+            width=0.7,
+            showlegend=False,
+            text=None,
+            hoverinfo='skip',
+        )
+    
+        # Overlay (delta) bar, red/green
+        overlays = go.Bar(
+            x=delta_values,
+            y=bar_labels,
+            orientation='h',
+            base=base_values,
+            marker=dict(color=delta_colors),
+            width=0.7,
+            showlegend=False,
+            text=bar_texts,
+            textposition='outside',
             textfont=dict(size=14),
             hovertemplate=(
                 "<b>BR:</b>&nbsp;&nbsp; %{y}<br>" +
                 "<b>Total XRP:</b>&nbsp;&nbsp; %{customdata[0]:,.4f}<br>" +
                 "<b>Δ % from Prev Day:</b>&nbsp;&nbsp; %{customdata[1]:+,.2f}%<extra></extra>"
             ),
-            customdata=list(zip(sum_in_range, (today_values - prev_values).round(2))),
-            showlegend=False,
-            width=0.7,
+            customdata=hover_custom,
+            cliponaxis=True,
         )
     
-        # Overlay bars (drawn last to appear on top)
-        overlay_traces = []
-        overlay_width = 0.7  # same as main bar
-        for label, curr, prev in zip(bar_labels, today_values, prev_values):
-            delta = curr - prev
-            if abs(delta) > 0.005:
-                # Overlay always starts at min(curr, prev) and covers the absolute difference
-                overlay_traces.append(go.Bar(
-                    x=[abs(delta)],
-                    y=[label],
-                    orientation='h',
-                    base=[min(curr, prev)],
-                    marker=dict(color='limegreen' if delta > 0 else 'crimson'),
-                    width=overlay_width,
-                    showlegend=False,
-                    hoverinfo='skip',
-                    text=None,
-                    cliponaxis=True,
-                ))
-    
-        # Plot: overlays last so they're "on top"
         fig_bar = go.Figure()
-        fig_bar.add_trace(bars_today)
-        for trace in overlay_traces:
-            fig_bar.add_trace(trace)
+        fig_bar.add_trace(bars_base)
+        fig_bar.add_trace(overlays)
     
         fig_bar.update_layout(
             title={
@@ -683,7 +695,7 @@ with tab2:
             yaxis=dict(fixedrange=True),
         )
     
-        fig_bar.update_traces(cliponaxis=True, textfont_size=12, insidetextanchor="end")
+        fig_bar.update_traces(cliponaxis=True)
     
         st.plotly_chart(fig_bar, use_container_width=True, config={
             'displayModeBar': False,
@@ -692,6 +704,7 @@ with tab2:
             'editable': False,
             'doubleClick': 'reset',
         })
+
 
 
 
