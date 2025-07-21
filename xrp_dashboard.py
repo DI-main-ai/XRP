@@ -515,10 +515,11 @@ with tab2:
     #     })
     
     
+
     if os.path.exists(ACCOUNTS_CSV):
         df = pd.read_csv(ACCOUNTS_CSV)
         df["date"] = pd.to_datetime(df["date"])
-        
+    
         # Get all available dates, newest first for dropdown
         available_dates = sorted(df["date"].dt.date.unique(), reverse=True)
         st.markdown("### XRP Distribution by Account Balance Range (Bar Chart)")
@@ -528,70 +529,71 @@ with tab2:
             0,
             key="date_bar_chart"
         )
-        
+    
         # Get today and yesterday's rows
         df_br = df[df["date"].dt.date == sel_date].copy()
         prev_dates = [d for d in available_dates if d < sel_date]
         prior_date = max(prev_dates) if prev_dates else None
         df_prev = df[df["date"].dt.date == prior_date].copy() if prior_date else None
-        
+    
         def parse_lower(x):
             try:
                 return float(x.split('-')[0].replace(',', '').strip())
             except:
                 return 0
-        
-        # --- Sorting (reverse y order) ---
+    
         df_br['min_balance'] = df_br['Balance Range (XRP)'].apply(parse_lower)
         df_br = df_br.sort_values('min_balance', ascending=True)
-        if df_prev is not None and not df_prev.empty:
-            df_prev["Sum in Range (XRP)"] = pd.to_numeric(df_prev["Sum in Range (XRP)"].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
-            total_xrp_prev = df_prev["Sum in Range (XRP)"].sum()
-            df_prev["% of All XRP in Circulation"] = df_prev["Sum in Range (XRP)"] / total_xrp_prev * 100
-
-        
-        # Percentages
         df_br["Sum in Range (XRP)"] = pd.to_numeric(df_br["Sum in Range (XRP)"].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
         total_xrp = df_br["Sum in Range (XRP)"].sum()
         df_br["% of All XRP in Circulation"] = df_br["Sum in Range (XRP)"] / total_xrp * 100
     
-        bar_labels = df_br["Balance Range (XRP)"]
-        bar_values = df_br["% of All XRP in Circulation"]
-        bar_text = df_br["% of All XRP in Circulation"].map(lambda x: f"{x:.2f}%")
-    
-        # Prepare "change" overlay bars
-        overlay_traces = []
-        text_annotations = []
-    
         if df_prev is not None and not df_prev.empty:
-            df_prev = df_prev.reset_index(drop=True)
-            df_br = df_br.reset_index(drop=True)
-            prev_values = df_prev["% of All XRP in Circulation"].values
-            today_values = bar_values.values
-            y_labels = bar_labels.values
+            df_prev['min_balance'] = df_prev['Balance Range (XRP)'].apply(parse_lower)
+            df_prev = df_prev.sort_values('min_balance', ascending=True)
+            df_prev["Sum in Range (XRP)"] = pd.to_numeric(df_prev["Sum in Range (XRP)"].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
+            total_xrp_prev = df_prev["Sum in Range (XRP)"].sum()
+            df_prev["% of All XRP in Circulation"] = df_prev["Sum in Range (XRP)"] / total_xrp_prev * 100
     
-            for i, (curr, prev, label) in enumerate(zip(today_values, prev_values, y_labels)):
-                delta = curr - prev
-                if abs(delta) < 0.01:  # Tiny/no change: skip overlay
-                    continue
-                # For green (increase): overlay inside the bar, starting at prev, ending at curr
-                if delta > 0:
-                    overlay_traces.append(go.Bar(
-                        x=[delta],
-                        y=[label],
-                        orientation='h',
-                        base=[prev],
-                        marker=dict(color='limegreen'),
-                        width=0.45,
-                        showlegend=False,
-                        hoverinfo="skip",
-                        text=[f"+{delta:.2f}%"],
-                        textposition="inside",
-                        textfont=dict(color="white", size=14),
-                        cliponaxis=False,
-                    ))
-                # For red (decrease): overlay starting at curr, extending *beyond* bar to prev
-                elif delta < 0:
+            # Align on Balance Range
+            merged = pd.merge(
+                df_br[["Balance Range (XRP)", "% of All XRP in Circulation"]],
+                df_prev[["Balance Range (XRP)", "% of All XRP in Circulation"]],
+                on="Balance Range (XRP)",
+                how="left",
+                suffixes=("_today", "_prev")
+            )
+            merged = merged.fillna(0)  # Just in case
+        else:
+            merged = df_br[["Balance Range (XRP)", "% of All XRP in Circulation"]].copy()
+            merged["% of All XRP in Circulation_prev"] = 0
+    
+        bar_labels = merged["Balance Range (XRP)"]
+        today_values = merged["% of All XRP in Circulation_today"]
+        prev_values = merged["% of All XRP in Circulation_prev"]
+    
+        # Main bar (today)
+        bars_today = go.Bar(
+            x=today_values,
+            y=bar_labels,
+            orientation='h',
+            text=[f"{v:.2f}%" for v in today_values],
+            textposition='outside',
+            marker=dict(color='#FDBA21'),
+            textfont=dict(size=14),
+            hovertemplate="%{y}: %{x:.2f}%",
+            showlegend=False,
+            width=0.7,
+        )
+    
+        # Delta overlays
+        overlay_traces = []
+        for label, curr, prev in zip(bar_labels, today_values, prev_values):
+            delta = curr - prev
+            # Show only if prev exists (not 0) and if there was a change
+            if abs(delta) > 0.01:
+                # If today < prev, show red bar at the END of today's bar, extending out
+                if delta < 0:
                     overlay_traces.append(go.Bar(
                         x=[-delta],
                         y=[label],
@@ -606,22 +608,24 @@ with tab2:
                         textfont=dict(color="white", size=14),
                         cliponaxis=False,
                     ))
+                # If today > prev, show green bar AT THE END of previous bar, up to today's bar (overlayed within bar, but from prev to curr)
+                elif delta > 0:
+                    overlay_traces.append(go.Bar(
+                        x=[delta],
+                        y=[label],
+                        orientation='h',
+                        base=[prev],
+                        marker=dict(color='limegreen'),
+                        width=0.45,
+                        showlegend=False,
+                        hoverinfo="skip",
+                        text=[f"+{delta:.2f}%"],
+                        textposition="inside",
+                        textfont=dict(color="white", size=14),
+                        cliponaxis=False,
+                    ))
     
-        # Main yellow bars (today)
-        bars_today = go.Bar(
-            x=bar_values,
-            y=bar_labels,
-            orientation='h',
-            text=bar_text,
-            textposition='outside',
-            marker=dict(color='#FDBA21'),
-            textfont=dict(size=14),
-            hovertemplate="%{y}: %{x:.2f}%",
-            showlegend=False,
-            width=0.7,
-        )
-    
-        # Build figure
+        # Plot
         fig_bar = go.Figure()
         fig_bar.add_trace(bars_today)
         for trace in overlay_traces:
@@ -663,6 +667,7 @@ with tab2:
             'editable': False,
             'doubleClick': 'reset',
         })
+
 
 
 
