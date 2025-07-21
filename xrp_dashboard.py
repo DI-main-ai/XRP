@@ -557,6 +557,7 @@ with tab2:
             0,
             key="date_bar_chart"
         )
+        df_br = df[df["date"].dt.date == sel_date].copy()
         prev_dates = [d for d in available_dates if d < sel_date]
         prior_date = max(prev_dates) if prev_dates else None
         
