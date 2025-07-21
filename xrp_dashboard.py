@@ -676,7 +676,7 @@ with tab2:
             showlegend=False,
             text=bar_texts,
             textposition='outside',
-            textfont=dict(size=10),
+            textfont=dict(size=14),
             hovertemplate=hovertemplate,
             customdata=hover_custom,
             cliponaxis=True,
@@ -709,7 +709,7 @@ with tab2:
             dragmode=False,
             height=600,
             showlegend=False,
-            xaxis=dict(range=[0, max_x], fixedrange=True),
+            xaxis=dict(range=[0, max_x + 3], fixedrange=True),
             yaxis=dict(fixedrange=True),
         )
     
