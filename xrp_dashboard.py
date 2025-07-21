@@ -676,13 +676,12 @@ with tab2:
             showlegend=False,
             text=bar_texts,
             textposition='outside',
-            textfont=dict(size=8),
+            textfont=dict(size=14),
             hovertemplate=hovertemplate,
             customdata=hover_custom,
             cliponaxis=True,
         )
-
-
+   
     
         fig_bar = go.Figure()
         fig_bar.add_trace(bars_base)
@@ -697,7 +696,7 @@ with tab2:
                 "yanchor": "top",
                 "font": dict(size=22)
             },
-            margin=dict(l=120, r=120, t=120, b=60),
+            margin=dict(l=120, r=60, t=120, b=60),
             xaxis_title="% of All XRP in Circulation",
             yaxis_title="Balance Range",
             plot_bgcolor='#1e222d',
@@ -705,10 +704,10 @@ with tab2:
             font=dict(color='#F1F1F1', size=16),
             uniformtext_minsize=10,
             uniformtext_mode='show',
-            bargap=0.45,
+            bargap=0.4,
             barmode='stack',
             dragmode=False,
-            height=660,
+            height=600,
             showlegend=False,
             xaxis=dict(range=[0, max_x], fixedrange=True),
             yaxis=dict(fixedrange=True),
