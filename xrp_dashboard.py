@@ -545,8 +545,10 @@ with tab2:
         df_br['min_balance'] = df_br['Balance Range (XRP)'].apply(parse_lower)
         df_br = df_br.sort_values('min_balance', ascending=True)
         if df_prev is not None and not df_prev.empty:
-            df_prev['min_balance'] = df_prev['Balance Range (XRP)'].apply(parse_lower)
-            df_prev = df_prev.sort_values('min_balance', ascending=True)
+            df_prev["Sum in Range (XRP)"] = pd.to_numeric(df_prev["Sum in Range (XRP)"].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
+            total_xrp_prev = df_prev["Sum in Range (XRP)"].sum()
+            df_prev["% of All XRP in Circulation"] = df_prev["Sum in Range (XRP)"] / total_xrp_prev * 100
+
         
         # Percentages
         df_br["Sum in Range (XRP)"] = pd.to_numeric(df_br["Sum in Range (XRP)"].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
