@@ -517,6 +517,7 @@ with tab2:
     
 
     
+    
     if os.path.exists(ACCOUNTS_CSV):
         df = pd.read_csv(ACCOUNTS_CSV)
         df["date"] = pd.to_datetime(df["date"])
@@ -549,7 +550,6 @@ with tab2:
         total_xrp = df_br["Sum in Range (XRP)"].sum()
         df_br["% of All XRP in Circulation"] = df_br["Sum in Range (XRP)"] / total_xrp * 100
     
-        # Prepare merged for today/prev
         if df_prev is not None and not df_prev.empty:
             df_prev['min_balance'] = df_prev['Balance Range (XRP)'].apply(parse_lower)
             df_prev = df_prev.sort_values('min_balance', ascending=True)
@@ -565,13 +565,10 @@ with tab2:
                 how="left",
                 suffixes=("_today", "_prev")
             ).fillna(0)
-    
-            # Ensure columns exist (robust for any edge case)
             if "% of All XRP in Circulation_today" not in merged.columns:
                 merged["% of All XRP in Circulation_today"] = merged["% of All XRP in Circulation"]
             if "% of All XRP in Circulation_prev" not in merged.columns:
                 merged["% of All XRP in Circulation_prev"] = 0
-    
         else:
             merged = df_br[["Balance Range (XRP)", "Sum in Range (XRP)", "% of All XRP in Circulation"]].copy()
             merged["% of All XRP in Circulation_prev"] = 0
@@ -582,44 +579,62 @@ with tab2:
         prev_values = merged["% of All XRP in Circulation_prev"]
         sum_in_range = merged["Sum in Range (XRP)"]
     
+        # Adjust max_x for margin (makes room for full text)
+        max_x = max(today_values.max(), prev_values.max()) * 1.18
+    
         # Main bar (today)
         bars_today = go.Bar(
             x=today_values,
             y=bar_labels,
             orientation='h',
             text=[f"{v:.2f}%" for v in today_values],
-            textposition='outside',
+            textposition='auto',
             marker=dict(color='#FDBA21'),
             textfont=dict(size=14),
             hovertemplate=(
-                "BR: %{y}<br>" +
-                "Total XRP: %{customdata[0]:,.4f}<br>" +
-                "Δ % from Prev Day: %{customdata[1]:+,.2f}%<extra></extra>"
+                "<b>BR:</b>&nbsp;&nbsp; %{y}<br>" +
+                "<b>Total XRP:</b>&nbsp;&nbsp; %{customdata[0]:,.4f}<br>" +
+                "<b>Δ % from Prev Day:</b>&nbsp;&nbsp; %{customdata[1]:+,.2f}%<extra></extra>"
             ),
-            customdata=list(zip(sum_in_range, today_values - prev_values)),
+            customdata=list(zip(sum_in_range, (today_values - prev_values).round(2))),
             showlegend=False,
             width=0.7,
         )
     
-        # Delta overlays: Draw a small in-line bar at the right edge of each main bar
+        # Delta overlays: Always drawn at the end of today's bar, tiny width for green (growth tick), extend for red (decrease)
         overlay_traces = []
-        overlay_width = 0.18  # Make overlay bar thinner than main bar
+        overlay_width = 0.16
         for label, curr, prev in zip(bar_labels, today_values, prev_values):
             delta = curr - prev
-            # Only draw delta if there was a change
             if abs(delta) > 0.005:
-                overlay_traces.append(go.Bar(
-                    x=[abs(delta)],
-                    y=[label],
-                    orientation='h',
-                    base=[min(curr, prev)],
-                    marker=dict(color='limegreen' if delta > 0 else 'crimson'),
-                    width=overlay_width,
-                    showlegend=False,
-                    hoverinfo='skip',
-                    text=None,
-                    cliponaxis=True,
-                ))
+                # For decreases: show a thin red bar starting at curr, going to prev (if prev > curr)
+                if delta < 0:
+                    overlay_traces.append(go.Bar(
+                        x=[abs(delta)],
+                        y=[label],
+                        orientation='h',
+                        base=[curr],
+                        marker=dict(color='crimson'),
+                        width=overlay_width,
+                        showlegend=False,
+                        hoverinfo='skip',
+                        text=None,
+                        cliponaxis=True,
+                    ))
+                # For increases: show a tiny green bar at end of today's bar (almost a "tick mark")
+                elif delta > 0:
+                    overlay_traces.append(go.Bar(
+                        x=[min(delta, max_x*0.01)],  # Very small tick
+                        y=[label],
+                        orientation='h',
+                        base=[curr - min(delta, max_x*0.01)],
+                        marker=dict(color='limegreen'),
+                        width=overlay_width,
+                        showlegend=False,
+                        hoverinfo='skip',
+                        text=None,
+                        cliponaxis=True,
+                    ))
     
         # Plot
         fig_bar = go.Figure()
@@ -636,7 +651,7 @@ with tab2:
                 "yanchor": "top",
                 "font": dict(size=22)
             },
-            margin=dict(l=120, r=60, t=120, b=60),
+            margin=dict(l=120, r=100, t=120, b=60),  # extra right margin for labels
             xaxis_title="% of All XRP in Circulation",
             yaxis_title="Balance Range",
             plot_bgcolor='#1e222d',
@@ -648,12 +663,10 @@ with tab2:
             dragmode=False,
             height=600,
             showlegend=False,
+            xaxis=dict(range=[0, max_x], fixedrange=True),
+            yaxis=dict(fixedrange=True),
         )
     
-        fig_bar.update_layout(
-            xaxis=dict(fixedrange=True),
-            yaxis=dict(fixedrange=True)
-        )
         fig_bar.update_traces(cliponaxis=True, textfont_size=12, insidetextanchor="end")
     
         st.plotly_chart(fig_bar, use_container_width=True, config={
@@ -663,6 +676,7 @@ with tab2:
             'editable': False,
             'doubleClick': 'reset',
         })
+
 
 
 
