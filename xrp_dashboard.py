@@ -607,6 +607,8 @@ with tab2:
         max_x = max(today_values.max(), prev_values.max()) * 1.20
     
         # Composite bars: always draw the smaller first (yellow), then overlay the delta (red/green), with label at the end of the delta
+
+
         base_values = []
         delta_values = []
         delta_colors = []
@@ -620,28 +622,37 @@ with tab2:
             srange = sum_in_range[i]
             delta = curr - prev
             delta_rounded = np.round(delta, 2)
-            # Determine which is the "base" and which is the "delta"
+            # Always show the base bar up to the minimum
             if curr >= prev:
-                base_values.append(prev)
-                delta_values.append(curr - prev)
-                delta_colors.append('limegreen' if delta > 0 else '#FDBA21')  # If no change, keep yellow
-                label_positions.append(curr)
+                base_val = prev
+                overlay_val = curr - prev
+                overlay_color = 'limegreen'
+                label_pos = curr
             else:
-                base_values.append(curr)
-                delta_values.append(prev - curr)
-                delta_colors.append('crimson' if delta < 0 else '#FDBA21')
-                label_positions.append(prev)
-            bar_texts.append(f"{label_positions[-1]:.2f}%")
+                base_val = curr
+                overlay_val = prev - curr
+                overlay_color = 'crimson'
+                label_pos = prev
+        
+            base_values.append(base_val)
+            # Only include overlay if rounded delta != 0.00
+            if delta_rounded != 0:
+                delta_values.append(overlay_val)
+                delta_colors.append(overlay_color)
+            else:
+                delta_values.append(0)
+                delta_colors.append(None)  # No color, won't be rendered
+        
+            label_positions.append(label_pos)
+            bar_texts.append(f"{label_pos:.2f}%")
             hover_custom.append((srange, delta_rounded))
         
-        # Create hovertemplate
         hovertemplate = (
             "<b>BR:</b>&nbsp;&nbsp; %{y}<br>" +
             "<b>Total XRP:</b>&nbsp;&nbsp; %{customdata[0]:,.4f}<br>" +
             "<b>Δ % from Prev Day:</b>&nbsp;&nbsp; %{customdata[1]:+,.2f}%<extra></extra>"
         )
         
-        # Main base bar (always yellow, min(today, prev)), now gets hoverinfo and text too
         bars_base = go.Bar(
             x=base_values,
             y=bar_labels,
@@ -654,13 +665,13 @@ with tab2:
             customdata=hover_custom,
         )
         
-        # Overlay (delta) bar, red/green, gets hover as well
+        # Only include overlays where delta_rounded != 0
         overlays = go.Bar(
-            x=delta_values,
+            x=[v if c is not None else 0 for v, c in zip(delta_values, delta_colors)],
             y=bar_labels,
             orientation='h',
             base=base_values,
-            marker=dict(color=delta_colors),
+            marker=dict(color=[c if c is not None else 'rgba(0,0,0,0)' for c in delta_colors]),
             width=0.7,
             showlegend=False,
             text=bar_texts,
@@ -670,6 +681,7 @@ with tab2:
             customdata=hover_custom,
             cliponaxis=True,
         )
+
 
     
         fig_bar = go.Figure()
