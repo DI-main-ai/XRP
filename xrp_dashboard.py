@@ -516,6 +516,7 @@ with tab2:
     
     
 
+    
     if os.path.exists(ACCOUNTS_CSV):
         df = pd.read_csv(ACCOUNTS_CSV)
         df["date"] = pd.to_datetime(df["date"])
@@ -548,6 +549,7 @@ with tab2:
         total_xrp = df_br["Sum in Range (XRP)"].sum()
         df_br["% of All XRP in Circulation"] = df_br["Sum in Range (XRP)"] / total_xrp * 100
     
+        # Prepare merged for today/prev
         if df_prev is not None and not df_prev.empty:
             df_prev['min_balance'] = df_prev['Balance Range (XRP)'].apply(parse_lower)
             df_prev = df_prev.sort_values('min_balance', ascending=True)
@@ -562,14 +564,21 @@ with tab2:
                 on="Balance Range (XRP)",
                 how="left",
                 suffixes=("_today", "_prev")
-            )
-            merged = merged.fillna(0)
+            ).fillna(0)
+    
+            # Ensure columns exist (robust for any edge case)
+            if "% of All XRP in Circulation_today" not in merged.columns:
+                merged["% of All XRP in Circulation_today"] = merged["% of All XRP in Circulation"]
+            if "% of All XRP in Circulation_prev" not in merged.columns:
+                merged["% of All XRP in Circulation_prev"] = 0
+    
         else:
             merged = df_br[["Balance Range (XRP)", "Sum in Range (XRP)", "% of All XRP in Circulation"]].copy()
             merged["% of All XRP in Circulation_prev"] = 0
+            merged["% of All XRP in Circulation_today"] = merged["% of All XRP in Circulation"]
     
         bar_labels = merged["Balance Range (XRP)"]
-        today_values = merged["% of All XRP in Circulation"]
+        today_values = merged["% of All XRP in Circulation_today"]
         prev_values = merged["% of All XRP in Circulation_prev"]
         sum_in_range = merged["Sum in Range (XRP)"]
     
@@ -597,6 +606,7 @@ with tab2:
         overlay_width = 0.18  # Make overlay bar thinner than main bar
         for label, curr, prev in zip(bar_labels, today_values, prev_values):
             delta = curr - prev
+            # Only draw delta if there was a change
             if abs(delta) > 0.005:
                 overlay_traces.append(go.Bar(
                     x=[abs(delta)],
@@ -607,7 +617,7 @@ with tab2:
                     width=overlay_width,
                     showlegend=False,
                     hoverinfo='skip',
-                    text=None,  # No text label on overlay
+                    text=None,
                     cliponaxis=True,
                 ))
     
@@ -653,6 +663,7 @@ with tab2:
             'editable': False,
             'doubleClick': 'reset',
         })
+
 
 
 
