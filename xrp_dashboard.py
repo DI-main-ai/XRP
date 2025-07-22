@@ -626,7 +626,9 @@ with tab2:
         label_positions = []
         bar_texts = []
         hover_custom = []
-        
+        print("Bar Labels:", list(bar_labels))
+        print("Today Values:", list(today_values))
+        print("Prev Values:", list(prev_values))
         for i in range(len(bar_labels)):
             curr = today_values[i]
             prev = prev_values[i]
