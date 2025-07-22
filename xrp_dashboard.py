@@ -605,8 +605,10 @@ with tab2:
     
         max_x = max(today_values.max(), prev_values.max()) * 1.20
     
-        bar_labels = fixed_order  # always use fixed_order
-
+        # After you have 'merged' (with index=fixed_order), do NOT use .values with any reordering.
+        # Always iterate using the DataFrame index and be sure it's ordered by fixed_order.
+        bar_labels = list(merged.index)  # Already fixed_order
+        
         base_values = []
         delta_values = []
         delta_colors = []
@@ -615,32 +617,24 @@ with tab2:
         hover_custom = []
         
         for label in bar_labels:
-            curr = merged.at[label, "% of All XRP in Circulation_today"] if label in merged.index else 0
-            prev = merged.at[label, "% of All XRP in Circulation_prev"] if label in merged.index else 0
-            srange = merged.at[label, "Sum in Range (XRP)"] if label in merged.index else 0
+            curr = merged.loc[label, "% of All XRP in Circulation_today"]
+            prev = merged.loc[label, "% of All XRP in Circulation_prev"]
+            srange = merged.loc[label, "Sum in Range (XRP)"]
             delta = curr - prev
             delta_rounded = np.round(delta, 2)
-            if curr >= prev:
-                base_val = prev
-                overlay_val = curr - prev
-                overlay_color = 'limegreen'
-                label_pos = curr
-            else:
-                base_val = curr
-                overlay_val = prev - curr
-                overlay_color = 'crimson'
-                label_pos = prev
+        
+            base_val = min(curr, prev)
+            overlay_val = abs(delta)
+            overlay_color = 'limegreen' if curr > prev else 'crimson' if curr < prev else None
+            label_pos = curr  # You could use max(curr, prev) if you want to label at the end
         
             base_values.append(base_val)
-            if delta_rounded != 0:
-                delta_values.append(overlay_val)
-                delta_colors.append(overlay_color)
-            else:
-                delta_values.append(0)
-                delta_colors.append(None)
+            delta_values.append(overlay_val if delta_rounded != 0 else 0)
+            delta_colors.append(overlay_color if delta_rounded != 0 else None)
             label_positions.append(label_pos)
             bar_texts.append(f"{label_pos:.2f}%")
             hover_custom.append((srange, delta_rounded))
+
 
     
         hovertemplate = (
