@@ -573,40 +573,39 @@ with tab2:
         )
 
         df_prev = df[df["date"].dt.date == prior_date].copy() if prior_date else None
-    
-        # Clean and sort both DataFrames in the fixed order
+        full_labels = pd.DataFrame({"Balance Range (XRP)": fixed_order})
+        
+        # Clean and prep today
         df_br = df_br[df_br["Balance Range (XRP)"].isin(fixed_order)].copy()
         df_br["Balance Range (XRP)"] = pd.Categorical(df_br["Balance Range (XRP)"], categories=fixed_order, ordered=True)
-        df_br = df_br.sort_values("Balance Range (XRP)", ascending=False)
-        df_br["Sum in Range (XRP)"] = pd.to_numeric(df_br["Sum in Range (XRP)"].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
+        df_br = full_labels.merge(df_br, on="Balance Range (XRP)", how="left")  # Ensures all labels
+        df_br["Sum in Range (XRP)"] = pd.to_numeric(df_br["Sum in Range (XRP)"], errors='coerce').fillna(0)
         total_xrp = df_br["Sum in Range (XRP)"].sum()
-        df_br["% of All XRP in Circulation"] = df_br["Sum in Range (XRP)"] / total_xrp * 100
+        df_br["% of All XRP in Circulation"] = np.where(total_xrp > 0, df_br["Sum in Range (XRP)"] / total_xrp * 100, 0)
     
         if df_prev is not None and not df_prev.empty:
             df_prev = df_prev[df_prev["Balance Range (XRP)"].isin(fixed_order)].copy()
             df_prev["Balance Range (XRP)"] = pd.Categorical(df_prev["Balance Range (XRP)"], categories=fixed_order, ordered=True)
-            df_prev = df_prev.sort_values("Balance Range (XRP)", ascending=False)
-            df_prev["Sum in Range (XRP)"] = pd.to_numeric(df_prev["Sum in Range (XRP)"].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
+            df_prev = full_labels.merge(df_prev, on="Balance Range (XRP)", how="left")
+            df_prev["Sum in Range (XRP)"] = pd.to_numeric(df_prev["Sum in Range (XRP)"], errors='coerce').fillna(0)
             total_xrp_prev = df_prev["Sum in Range (XRP)"].sum()
-            df_prev["% of All XRP in Circulation"] = df_prev["Sum in Range (XRP)"] / total_xrp_prev * 100
-    
-            merged = pd.merge(
-                df_br[["Balance Range (XRP)", "Sum in Range (XRP)", "% of All XRP in Circulation"]],
+            df_prev["% of All XRP in Circulation"] = np.where(total_xrp_prev > 0, df_prev["Sum in Range (XRP)"] / total_xrp_prev * 100, 0)
+        
+            merged = df_br[["Balance Range (XRP)", "Sum in Range (XRP)", "% of All XRP in Circulation"]].merge(
                 df_prev[["Balance Range (XRP)", "% of All XRP in Circulation"]],
                 on="Balance Range (XRP)",
                 how="left",
                 suffixes=("_today", "_prev")
             )
-    
-            # Only fill NaN in the numeric columns, not the categorical
+            # Fill only numeric columns
             for col in ["Sum in Range (XRP)", "% of All XRP in Circulation_today", "% of All XRP in Circulation_prev"]:
                 if col in merged.columns:
-                    merged[col] = merged[col].fillna(0)
+                    merged[col] = pd.to_numeric(merged[col], errors='coerce').fillna(0)
         else:
             merged = df_br[["Balance Range (XRP)", "Sum in Range (XRP)", "% of All XRP in Circulation"]].copy()
             merged["% of All XRP in Circulation_prev"] = 0
             merged["% of All XRP in Circulation_today"] = merged["% of All XRP in Circulation"]
-    
+        
         merged["Balance Range (XRP)"] = pd.Categorical(merged["Balance Range (XRP)"], categories=fixed_order, ordered=True)
         merged = merged.sort_values("Balance Range (XRP)", ascending=False)
     
