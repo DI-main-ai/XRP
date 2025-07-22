@@ -653,20 +653,20 @@ with tab2:
         except Exception as e:
             st.write(f"Error indexing debug range: {e}")
 
-        for i in range(len(bar_labels)):
-            curr = today_values[i]
-            prev = prev_values[i]
-            srange = sum_in_range[i]
+        for label in bar_labels:
+            curr = merged.loc[label, "% of All XRP in Circulation_today"]
+            prev = merged.loc[label, "% of All XRP in Circulation_prev"]
+            srange = merged.loc[label, "Sum in Range (XRP)"]
             delta = curr - prev
             delta_rounded = np.round(delta, 2)
-            # Always show the base bar up to the minimum
+        
             base_val = min(curr, prev)
-            overlay_val = abs(curr - prev)
+            overlay_val = abs(delta)
             overlay_color = 'limegreen' if curr > prev else 'crimson' if curr < prev else None
             label_pos = curr  # Always today value for the label
         
             base_values.append(base_val)
-            if np.round(overlay_val, 2) != 0:
+            if delta_rounded != 0:
                 delta_values.append(overlay_val)
                 delta_colors.append(overlay_color)
             else:
@@ -675,7 +675,8 @@ with tab2:
         
             label_positions.append(label_pos)
             bar_texts.append(f"{label_pos:.2f}%")
-            hover_custom.append((srange, np.round(curr - prev, 2)))
+            hover_custom.append((srange, delta_rounded))
+
 
         
             base_values.append(base_val)
