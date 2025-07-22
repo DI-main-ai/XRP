@@ -626,9 +626,26 @@ with tab2:
         label_positions = []
         bar_texts = []
         hover_custom = []
-        print("Bar Labels:", list(bar_labels))
-        print("Today Values:", list(today_values))
-        print("Prev Values:", list(prev_values))
+
+        # (Optional: pick the balance range you want to debug)
+        debug_range = "1,000,000,000 - Infinity"
+        
+        # Show today's and previous day's % for each balance range
+        st.write("Today's Data:")
+        st.write(merged[["% of All XRP in Circulation_today"]])
+        
+        st.write("Previous Day's Data:")
+        st.write(merged[["% of All XRP in Circulation_prev"]])
+        
+        # Show the values just for the problematic range
+        try:
+            idx = list(merged.index).index(debug_range)
+            st.write(f"Debug for {debug_range}:")
+            st.write(f"  Today: {today_values[idx]}")
+            st.write(f"  Prev:  {prev_values[idx]}")
+        except Exception as e:
+            st.write(f"Error indexing debug range: {e}")
+
         for i in range(len(bar_labels)):
             curr = today_values[i]
             prev = prev_values[i]
