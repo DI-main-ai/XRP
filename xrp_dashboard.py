@@ -656,22 +656,6 @@ with tab2:
             label_positions.append(label_pos)
             bar_texts.append(f"{label_pos:.2f}%")
             hover_custom.append((srange, delta_rounded))
-
-
-
-        
-            base_values.append(base_val)
-            # Only include overlay if rounded delta != 0.00
-            if delta_rounded != 0:
-                delta_values.append(overlay_val)
-                delta_colors.append(overlay_color)
-            else:
-                delta_values.append(0)
-                delta_colors.append(None)  # No color, won't be rendered
-        
-            label_positions.append(label_pos)
-            bar_texts.append(f"{label_pos:.2f}%")
-            hover_custom.append((srange, delta_rounded))
         
         hovertemplate = (
             "<b>BR:</b>&nbsp;&nbsp; %{y}<br>" +
