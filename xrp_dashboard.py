@@ -609,10 +609,11 @@ with tab2:
                 "% of All XRP in Circulation_prev": 0
             }, index=fixed_order)
         
-        bar_labels = merged.index
-        today_values = merged["% of All XRP in Circulation_today"]
-        prev_values = merged["% of All XRP in Circulation_prev"]
-        sum_in_range = merged["Sum in Range (XRP)"]
+        bar_labels = fixed_order
+        today_values = merged.loc[fixed_order, "% of All XRP in Circulation_today"].values
+        prev_values = merged.loc[fixed_order, "% of All XRP in Circulation_prev"].values
+        sum_in_range = merged.loc[fixed_order, "Sum in Range (XRP)"].values
+
 
     
         max_x = max(today_values.max(), prev_values.max()) * 1.20
