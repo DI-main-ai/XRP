@@ -596,8 +596,6 @@ with tab2:
                 "% of All XRP in Circulation_today": df_br["% of All XRP in Circulation"],
                 "% of All XRP in Circulation_prev": 0
             }, index=fixed_order).fillna(0)
-        st.write("DEBUG - Merged Table")
-        st.write(merged)
         bar_labels = merged.index
         today_values = merged["% of All XRP in Circulation_today"].values
         prev_values = merged["% of All XRP in Circulation_prev"].values
@@ -698,7 +696,11 @@ with tab2:
             height=600,
             showlegend=False,
             xaxis=dict(range=[0, max_x + 5], fixedrange=True),
-            yaxis=dict(fixedrange=True),
+            yaxis=dict(
+                fixedrange=True,
+                categoryorder='array',
+                categoryarray=fixed_order  # This will order as in fixed_order (top-to-bottom)
+            ),
         )
     
         fig_bar.update_traces(cliponaxis=True)
