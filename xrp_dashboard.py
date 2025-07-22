@@ -573,46 +573,36 @@ with tab2:
         )
 
         df_prev = df[df["date"].dt.date == prior_date].copy() if prior_date else None
-        full_labels = pd.DataFrame({"Balance Range (XRP)": fixed_order})
+        # Drop duplicates in case there are any!
+        df_br = df_br.drop_duplicates(subset=["Balance Range (XRP)"])
+        if df_prev is not None:
+            df_prev = df_prev.drop_duplicates(subset=["Balance Range (XRP)"])
         
-        # Clean and prep today
-        df_br = df_br[df_br["Balance Range (XRP)"].isin(fixed_order)].copy()
+        # Set and reindex for perfect row alignment
         df_br["Balance Range (XRP)"] = pd.Categorical(df_br["Balance Range (XRP)"], categories=fixed_order, ordered=True)
-        df_br = full_labels.merge(df_br, on="Balance Range (XRP)", how="left")  # Ensures all labels
-        df_br["Sum in Range (XRP)"] = pd.to_numeric(df_br["Sum in Range (XRP)"], errors='coerce').fillna(0)
-        total_xrp = df_br["Sum in Range (XRP)"].sum()
-        df_br["% of All XRP in Circulation"] = np.where(total_xrp > 0, df_br["Sum in Range (XRP)"] / total_xrp * 100, 0)
-    
-        if df_prev is not None and not df_prev.empty:
-            df_prev = df_prev[df_prev["Balance Range (XRP)"].isin(fixed_order)].copy()
+        df_br = df_br.set_index("Balance Range (XRP)").reindex(fixed_order)
+        
+        if df_prev is not None:
             df_prev["Balance Range (XRP)"] = pd.Categorical(df_prev["Balance Range (XRP)"], categories=fixed_order, ordered=True)
-            df_prev = full_labels.merge(df_prev, on="Balance Range (XRP)", how="left")
-            df_prev["Sum in Range (XRP)"] = pd.to_numeric(df_prev["Sum in Range (XRP)"], errors='coerce').fillna(0)
-            total_xrp_prev = df_prev["Sum in Range (XRP)"].sum()
-            df_prev["% of All XRP in Circulation"] = np.where(total_xrp_prev > 0, df_prev["Sum in Range (XRP)"] / total_xrp_prev * 100, 0)
-        
-            merged = df_br[["Balance Range (XRP)", "Sum in Range (XRP)", "% of All XRP in Circulation"]].merge(
-                df_prev[["Balance Range (XRP)", "% of All XRP in Circulation"]],
-                on="Balance Range (XRP)",
-                how="left",
-                suffixes=("_today", "_prev")
-            )
-            # Fill only numeric columns
-            for col in ["Sum in Range (XRP)", "% of All XRP in Circulation_today", "% of All XRP in Circulation_prev"]:
-                if col in merged.columns:
-                    merged[col] = pd.to_numeric(merged[col], errors='coerce').fillna(0)
+            df_prev = df_prev.set_index("Balance Range (XRP)").reindex(fixed_order)
+            merged = pd.DataFrame({
+                "Sum in Range (XRP)": df_br["Sum in Range (XRP)"],
+                "% of All XRP in Circulation_today": df_br["% of All XRP in Circulation"],
+                "% of All XRP in Circulation_prev": df_prev["% of All XRP in Circulation"]
+            }, index=fixed_order)
+            merged = merged.fillna(0)
         else:
-            merged = df_br[["Balance Range (XRP)", "Sum in Range (XRP)", "% of All XRP in Circulation"]].copy()
-            merged["% of All XRP in Circulation_prev"] = 0
-            merged["% of All XRP in Circulation_today"] = merged["% of All XRP in Circulation"]
+            merged = pd.DataFrame({
+                "Sum in Range (XRP)": df_br["Sum in Range (XRP)"],
+                "% of All XRP in Circulation_today": df_br["% of All XRP in Circulation"],
+                "% of All XRP in Circulation_prev": 0
+            }, index=fixed_order)
         
-        merged["Balance Range (XRP)"] = pd.Categorical(merged["Balance Range (XRP)"], categories=fixed_order, ordered=True)
-        merged = merged.sort_values("Balance Range (XRP)", ascending=False)
-    
-        bar_labels = merged["Balance Range (XRP)"]
-        today_values = merged["% of All XRP in Circulation_today"].values
-        prev_values = merged["% of All XRP in Circulation_prev"].values
-        sum_in_range = merged["Sum in Range (XRP)"].values
+        bar_labels = merged.index
+        today_values = merged["% of All XRP in Circulation_today"]
+        prev_values = merged["% of All XRP in Circulation_prev"]
+        sum_in_range = merged["Sum in Range (XRP)"]
+
     
         max_x = max(today_values.max(), prev_values.max()) * 1.20
     
