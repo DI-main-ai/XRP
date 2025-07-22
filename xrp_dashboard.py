@@ -610,9 +610,15 @@ with tab2:
             }, index=fixed_order)
         
         bar_labels = fixed_order
+
+        st.write("MERGED DATAFRAME DEBUG")
+        st.write(merged.reset_index())
+
         today_values = merged.loc[fixed_order, "% of All XRP in Circulation_today"].values
         prev_values = merged.loc[fixed_order, "% of All XRP in Circulation_prev"].values
         sum_in_range = merged.loc[fixed_order, "Sum in Range (XRP)"].values
+        for i, label in enumerate(fixed_order):
+            st.write(f"{label}: Today={today_values[i]}, Prev={prev_values[i]}")
 
 
     
