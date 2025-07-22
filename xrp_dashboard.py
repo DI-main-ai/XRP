@@ -660,16 +660,23 @@ with tab2:
             delta = curr - prev
             delta_rounded = np.round(delta, 2)
             # Always show the base bar up to the minimum
-            if curr >= prev:
-                base_val = prev
-                overlay_val = curr - prev
-                overlay_color = 'limegreen'
-                label_pos = curr
+            base_val = min(curr, prev)
+            overlay_val = abs(curr - prev)
+            overlay_color = 'limegreen' if curr > prev else 'crimson' if curr < prev else None
+            label_pos = curr  # Always today value for the label
+        
+            base_values.append(base_val)
+            if np.round(overlay_val, 2) != 0:
+                delta_values.append(overlay_val)
+                delta_colors.append(overlay_color)
             else:
-                base_val = curr
-                overlay_val = prev - curr
-                overlay_color = 'crimson'
-                label_pos = prev
+                delta_values.append(0)
+                delta_colors.append(None)
+        
+            label_positions.append(label_pos)
+            bar_texts.append(f"{label_pos:.2f}%")
+            hover_custom.append((srange, np.round(curr - prev, 2)))
+
         
             base_values.append(base_val)
             # Only include overlay if rounded delta != 0.00
