@@ -596,7 +596,8 @@ with tab2:
                 "% of All XRP in Circulation_today": df_br["% of All XRP in Circulation"],
                 "% of All XRP in Circulation_prev": 0
             }, index=fixed_order).fillna(0)
-    
+        st.write("DEBUG - Merged Table")
+        st.write(merged)
         bar_labels = merged.index
         today_values = merged["% of All XRP in Circulation_today"].values
         prev_values = merged["% of All XRP in Circulation_prev"].values
