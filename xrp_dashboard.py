@@ -577,10 +577,21 @@ with tab2:
         df_br = df_br.drop_duplicates(subset=["Balance Range (XRP)"])
         if df_prev is not None:
             df_prev = df_prev.drop_duplicates(subset=["Balance Range (XRP)"])
-        
-        # Set and reindex for perfect row alignment
+
+        # Calculate the percentages BEFORE setting the index!
+        df_br["Sum in Range (XRP)"] = pd.to_numeric(df_br["Sum in Range (XRP)"].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
+        total_xrp = df_br["Sum in Range (XRP)"].sum()
+        df_br["% of All XRP in Circulation"] = df_br["Sum in Range (XRP)"] / total_xrp * 100
+
+        if df_prev is not None:
+            df_prev["Sum in Range (XRP)"] = pd.to_numeric(df_prev["Sum in Range (XRP)"].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
+            total_xrp_prev = df_prev["Sum in Range (XRP)"].sum()
+            df_prev["% of All XRP in Circulation"] = df_prev["Sum in Range (XRP)"] / total_xrp_prev * 100
+
+        # Now set and reindex for perfect row alignment
         df_br["Balance Range (XRP)"] = pd.Categorical(df_br["Balance Range (XRP)"], categories=fixed_order, ordered=True)
         df_br = df_br.set_index("Balance Range (XRP)").reindex(fixed_order)
+
         
         if df_prev is not None:
             df_prev["Balance Range (XRP)"] = pd.Categorical(df_prev["Balance Range (XRP)"], categories=fixed_order, ordered=True)
