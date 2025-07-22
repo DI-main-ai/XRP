@@ -605,17 +605,19 @@ with tab2:
     
         max_x = max(today_values.max(), prev_values.max()) * 1.20
     
+        bar_labels = fixed_order  # always use fixed_order
+
         base_values = []
         delta_values = []
         delta_colors = []
         label_positions = []
         bar_texts = []
         hover_custom = []
-    
-        for i in range(len(bar_labels)):
-            curr = today_values[i]
-            prev = prev_values[i]
-            srange = sum_in_range[i]
+        
+        for label in bar_labels:
+            curr = merged.at[label, "% of All XRP in Circulation_today"] if label in merged.index else 0
+            prev = merged.at[label, "% of All XRP in Circulation_prev"] if label in merged.index else 0
+            srange = merged.at[label, "Sum in Range (XRP)"] if label in merged.index else 0
             delta = curr - prev
             delta_rounded = np.round(delta, 2)
             if curr >= prev:
@@ -628,7 +630,7 @@ with tab2:
                 overlay_val = prev - curr
                 overlay_color = 'crimson'
                 label_pos = prev
-    
+        
             base_values.append(base_val)
             if delta_rounded != 0:
                 delta_values.append(overlay_val)
@@ -639,6 +641,7 @@ with tab2:
             label_positions.append(label_pos)
             bar_texts.append(f"{label_pos:.2f}%")
             hover_custom.append((srange, delta_rounded))
+
     
         hovertemplate = (
             "<b>BR:</b>&nbsp;&nbsp; %{y}<br>" +
