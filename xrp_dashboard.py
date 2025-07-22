@@ -633,27 +633,8 @@ with tab2:
         label_positions = []
         bar_texts = []
         hover_custom = []
-
-        # (Optional: pick the balance range you want to debug)
-        debug_range = "1,000,000,000 - Infinity"
         
-        # Show today's and previous day's % for each balance range
-        st.write("Today's Data:")
-        st.write(merged[["% of All XRP in Circulation_today"]])
-        
-        st.write("Previous Day's Data:")
-        st.write(merged[["% of All XRP in Circulation_prev"]])
-        
-        # Show the values just for the problematic range
-        try:
-            idx = list(merged.index).index(debug_range)
-            st.write(f"Debug for {debug_range}:")
-            st.write(f"  Today: {today_values[idx]}")
-            st.write(f"  Prev:  {prev_values[idx]}")
-        except Exception as e:
-            st.write(f"Error indexing debug range: {e}")
-
-        for label in bar_labels:
+        for label in fixed_order:
             curr = merged.loc[label, "% of All XRP in Circulation_today"]
             prev = merged.loc[label, "% of All XRP in Circulation_prev"]
             srange = merged.loc[label, "Sum in Range (XRP)"]
@@ -663,7 +644,7 @@ with tab2:
             base_val = min(curr, prev)
             overlay_val = abs(delta)
             overlay_color = 'limegreen' if curr > prev else 'crimson' if curr < prev else None
-            label_pos = curr  # Always today value for the label
+            label_pos = curr  # Or `max(curr, prev)` if you want the label at the end
         
             base_values.append(base_val)
             if delta_rounded != 0:
@@ -672,10 +653,10 @@ with tab2:
             else:
                 delta_values.append(0)
                 delta_colors.append(None)
-        
             label_positions.append(label_pos)
             bar_texts.append(f"{label_pos:.2f}%")
             hover_custom.append((srange, delta_rounded))
+
 
 
         
