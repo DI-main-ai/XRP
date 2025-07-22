@@ -527,7 +527,6 @@ with tab2:
         df = pd.read_csv(ACCOUNTS_CSV)
         df["date"] = pd.to_datetime(df["date"])
     
-        # Fixed order for y-axis
         fixed_order = [
             "1,000,000,000 - Infinity",
             "500,000,000 - 1,000,000,000",
@@ -560,10 +559,10 @@ with tab2:
         df_br = df[df["date"].dt.date == sel_date].copy()
         prev_dates = [d for d in available_dates if d < sel_date]
         prior_date = max(prev_dates) if prev_dates else None
-        
+    
         prev_date_str = prior_date.strftime("%Y-%m-%d") if prior_date else "N/A"
         curr_date_str = sel_date.strftime("%Y-%m-%d")
-        
+    
         st.markdown(
             f'<div style="margin-bottom:10px;">'
             f'<span style="color:#aaa;">Date: <b>{curr_date_str}</b> '
@@ -571,71 +570,53 @@ with tab2:
             f'</div>',
             unsafe_allow_html=True
         )
-
+    
         df_prev = df[df["date"].dt.date == prior_date].copy() if prior_date else None
     
-        # Clean and sort both DataFrames in the fixed order
-        df_br = df_br[df_br["Balance Range (XRP)"].isin(fixed_order)].copy()
-        df_br["Balance Range (XRP)"] = pd.Categorical(df_br["Balance Range (XRP)"], categories=fixed_order, ordered=True)
-        df_br = df_br.sort_values("Balance Range (XRP)", ascending=False)
+        # ---- KEY FIX: ensure categorical index for both current and previous day ----
+        df_br = df_br.set_index("Balance Range (XRP)").reindex(fixed_order)
         df_br["Sum in Range (XRP)"] = pd.to_numeric(df_br["Sum in Range (XRP)"].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
         total_xrp = df_br["Sum in Range (XRP)"].sum()
         df_br["% of All XRP in Circulation"] = df_br["Sum in Range (XRP)"] / total_xrp * 100
     
         if df_prev is not None and not df_prev.empty:
-            df_prev = df_prev[df_prev["Balance Range (XRP)"].isin(fixed_order)].copy()
-            df_prev["Balance Range (XRP)"] = pd.Categorical(df_prev["Balance Range (XRP)"], categories=fixed_order, ordered=True)
-            df_prev = df_prev.sort_values("Balance Range (XRP)", ascending=False)
+            df_prev = df_prev.set_index("Balance Range (XRP)").reindex(fixed_order)
             df_prev["Sum in Range (XRP)"] = pd.to_numeric(df_prev["Sum in Range (XRP)"].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
             total_xrp_prev = df_prev["Sum in Range (XRP)"].sum()
             df_prev["% of All XRP in Circulation"] = df_prev["Sum in Range (XRP)"] / total_xrp_prev * 100
     
-            merged = pd.merge(
-                df_br[["Balance Range (XRP)", "Sum in Range (XRP)", "% of All XRP in Circulation"]],
-                df_prev[["Balance Range (XRP)", "% of All XRP in Circulation"]],
-                on="Balance Range (XRP)",
-                how="left",
-                suffixes=("_today", "_prev")
-            )
-    
-            # Only fill NaN in the numeric columns, not the categorical
-            for col in ["Sum in Range (XRP)", "% of All XRP in Circulation_today", "% of All XRP in Circulation_prev"]:
-                if col in merged.columns:
-                    merged[col] = merged[col].fillna(0)
+            merged = pd.DataFrame({
+                "Sum in Range (XRP)": df_br["Sum in Range (XRP)"],
+                "% of All XRP in Circulation_today": df_br["% of All XRP in Circulation"],
+                "% of All XRP in Circulation_prev": df_prev["% of All XRP in Circulation"]
+            }, index=fixed_order).fillna(0)
         else:
-            merged = df_br[["Balance Range (XRP)", "Sum in Range (XRP)", "% of All XRP in Circulation"]].copy()
-            merged["% of All XRP in Circulation_prev"] = 0
-            merged["% of All XRP in Circulation_today"] = merged["% of All XRP in Circulation"]
+            merged = pd.DataFrame({
+                "Sum in Range (XRP)": df_br["Sum in Range (XRP)"],
+                "% of All XRP in Circulation_today": df_br["% of All XRP in Circulation"],
+                "% of All XRP in Circulation_prev": 0
+            }, index=fixed_order).fillna(0)
     
-        merged["Balance Range (XRP)"] = pd.Categorical(merged["Balance Range (XRP)"], categories=fixed_order, ordered=True)
-        merged = merged.sort_values("Balance Range (XRP)", ascending=False)
-    
-        bar_labels = merged["Balance Range (XRP)"]
+        bar_labels = merged.index
         today_values = merged["% of All XRP in Circulation_today"].values
         prev_values = merged["% of All XRP in Circulation_prev"].values
         sum_in_range = merged["Sum in Range (XRP)"].values
     
         max_x = max(today_values.max(), prev_values.max()) * 1.20
     
-        # Composite bars: always draw the smaller first (yellow), then overlay the delta (red/green), with label at the end of the delta
-
-
         base_values = []
         delta_values = []
         delta_colors = []
         label_positions = []
         bar_texts = []
         hover_custom = []
-        print("Bar Labels:", list(bar_labels))
-        print("Today Values:", list(today_values))
-        print("Prev Values:", list(prev_values))
+    
         for i in range(len(bar_labels)):
             curr = today_values[i]
             prev = prev_values[i]
             srange = sum_in_range[i]
             delta = curr - prev
             delta_rounded = np.round(delta, 2)
-            # Always show the base bar up to the minimum
             if curr >= prev:
                 base_val = prev
                 overlay_val = curr - prev
@@ -646,26 +627,24 @@ with tab2:
                 overlay_val = prev - curr
                 overlay_color = 'crimson'
                 label_pos = prev
-        
+    
             base_values.append(base_val)
-            # Only include overlay if rounded delta != 0.00
             if delta_rounded != 0:
                 delta_values.append(overlay_val)
                 delta_colors.append(overlay_color)
             else:
                 delta_values.append(0)
-                delta_colors.append(None)  # No color, won't be rendered
-        
+                delta_colors.append(None)
             label_positions.append(label_pos)
             bar_texts.append(f"{label_pos:.2f}%")
             hover_custom.append((srange, delta_rounded))
-        
+    
         hovertemplate = (
             "<b>BR:</b>&nbsp;&nbsp; %{y}<br>" +
             "<b>Total XRP:</b>&nbsp;&nbsp; %{customdata[0]:,.4f}<br>" +
             "<b>Δ % from Prev Day:</b>&nbsp;&nbsp; %{customdata[1]:+,.2f}%<extra></extra>"
         )
-        
+    
         bars_base = go.Bar(
             x=base_values,
             y=bar_labels,
@@ -677,8 +656,7 @@ with tab2:
             hovertemplate=hovertemplate,
             customdata=hover_custom,
         )
-        
-        # Only include overlays where delta_rounded != 0
+    
         overlays = go.Bar(
             x=[v if c is not None else 0 for v, c in zip(delta_values, delta_colors)],
             y=bar_labels,
@@ -694,7 +672,6 @@ with tab2:
             customdata=hover_custom,
             cliponaxis=True,
         )
-   
     
         fig_bar = go.Figure()
         fig_bar.add_trace(bars_base)
