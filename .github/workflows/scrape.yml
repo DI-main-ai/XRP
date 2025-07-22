@@ -3,7 +3,9 @@ name: Update XRP Data
 on:
   schedule:
     - cron: '0 7 * * *'
+    - cron: '0 2 * * *' # 17:00 UTC = 12:00 PM (noon) Central Time
     - cron: '0 17 * * *' # 17:00 UTC = 12:00 PM (noon) Central Time
+    - cron: '0 23 * * *' # 17:00 UTC = 12:00 PM (noon) Central Time
   workflow_dispatch:
 
 jobs:
