@@ -579,7 +579,7 @@ with tab2:
             showlegend=False,
             text=bar_texts,
             textposition='outside',
-            textfont=dict(size=16),
+            textfont=dict(size=25),
             hovertemplate=hovertemplate,
             customdata=hover_custom,
             cliponaxis=True,
