@@ -615,7 +615,7 @@ with tab2:
             yaxis=dict(
                 fixedrange=True,
                 categoryorder='array',
-                categoryarray=fixed_order  # This will order as in fixed_order (top-to-bottom)
+                categoryarray=fixed_order[::-1]  # This will order as in fixed_order (top-to-bottom)
             ),
         )
     
