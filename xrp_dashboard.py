@@ -515,12 +515,12 @@ with tab2:
         # Always iterate using the DataFrame index and be sure it's ordered by fixed_order.
         bar_labels = list(merged.index)  # Already fixed_order
         
-        base_values = [][::-1]
-        delta_values = [][::-1]
-        delta_colors = [][::-1]
-        label_positions = [][::-1]
-        bar_texts = [][::-1]
-        hover_custom = [][::-1]
+        base_values = []
+        delta_values = []
+        delta_colors = []
+        label_positions = []
+        bar_texts = []
+        hover_custom = []
         
         for label in bar_labels:
             curr = merged.loc[label, "% of All XRP in Circulation_today"]
@@ -540,6 +540,14 @@ with tab2:
             label_positions.append(label_pos)
             bar_texts.append(f"{label_pos:.2f}%")
             hover_custom.append((srange, delta_rounded))
+       
+        base_values = base_values[::-1]
+        delta_values = delta_values[::-1]
+        delta_colors = delta_colors[::-1]
+        label_positions = label_positions[::-1]
+        bar_texts = bar_texts[::-1]
+        hover_custom = hover_custom[::-1]
+        bar_labels = list(bar_labels)[::-1]
 
 
     
