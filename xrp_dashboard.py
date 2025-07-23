@@ -580,7 +580,6 @@ with tab2:
             text=bar_texts,
             textposition='outside',
             textfont=dict(size=16),
-            #tickfont=dict(size=18),
             hovertemplate=hovertemplate,
             customdata=hover_custom,
             cliponaxis=True,
@@ -616,7 +615,8 @@ with tab2:
             yaxis=dict(
                 fixedrange=True,
                 categoryorder='array',
-                categoryarray=fixed_order[::-1]  # This will order as in fixed_order (top-to-bottom)
+                categoryarray=fixed_order[::-1],
+                tickfont=dict(size=18),
             ),
         )
     
