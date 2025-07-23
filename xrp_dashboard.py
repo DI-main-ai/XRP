@@ -551,7 +551,7 @@ with tab2:
     
         bars_base = go.Bar(
             x=base_values[::-1],
-            y=bar_labels[::-1],
+            y=bar_labels,
             orientation='h',
             marker=dict(color='#FDBA21'),
             width=0.7,
@@ -563,7 +563,7 @@ with tab2:
     
         overlays = go.Bar(
             x=[v if c is not None else 0 for v, c in zip(delta_values, delta_colors)],
-            y=bar_labels[::-1],
+            y=bar_labels,
             orientation='h',
             base=base_values[::-1],
             marker=dict(color=[c if c is not None else 'rgba(0,0,0,0)' for c in delta_colors]),
