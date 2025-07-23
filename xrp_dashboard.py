@@ -580,6 +580,7 @@ with tab2:
             text=bar_texts,
             textposition='outside',
             textfont=dict(size=16),
+            tickfont=dict(size=18),
             hovertemplate=hovertemplate,
             customdata=hover_custom,
             cliponaxis=True,
