@@ -617,7 +617,7 @@ with tab2:
                 categoryorder='array',
                 categoryarray=fixed_order[::-1],
                 tickfont=dict(
-                    family="Arial Black",
+                    family="Arial Black",),
                     #size=14,),
             ),
         )
