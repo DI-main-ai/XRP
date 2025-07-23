@@ -5,6 +5,7 @@ import os
 import re
 from datetime import datetime
 import numpy as np
+import plotly.graph_objects as go
 
 # ----- DARK THEME INJECT -----
 st.set_page_config(page_title="XRP Rich List Dashboard", initial_sidebar_state="collapsed", layout="centered")
