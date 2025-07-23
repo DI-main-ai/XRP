@@ -515,12 +515,12 @@ with tab2:
         # Always iterate using the DataFrame index and be sure it's ordered by fixed_order.
         bar_labels = list(merged.index)  # Already fixed_order
         
-        base_values = []
-        delta_values = []
-        delta_colors = []
-        label_positions = []
-        bar_texts = []
-        hover_custom = []
+        base_values = [][::-1]
+        delta_values = [][::-1]
+        delta_colors = [][::-1]
+        label_positions = [][::-1]
+        bar_texts = [][::-1]
+        hover_custom = [][::-1]
         
         for label in bar_labels:
             curr = merged.loc[label, "% of All XRP in Circulation_today"]
@@ -551,7 +551,7 @@ with tab2:
     
         bars_base = go.Bar(
             x=base_values,
-            y=bar_labels[::-1],
+            y=bar_labels,
             orientation='h',
             marker=dict(color='#FDBA21'),
             width=0.7,
@@ -563,7 +563,7 @@ with tab2:
     
         overlays = go.Bar(
             x=[v if c is not None else 0 for v, c in zip(delta_values, delta_colors)],
-            y=bar_labels[::-1],
+            y=bar_labels,
             orientation='h',
             base=base_values,
             marker=dict(color=[c if c is not None else 'rgba(0,0,0,0)' for c in delta_colors]),
