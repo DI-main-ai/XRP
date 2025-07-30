@@ -569,7 +569,7 @@ with tab2:
         hovertemplate = (
             "<b>BR:</b>&nbsp;&nbsp; %{y}<br>" +
             "<b>Total XRP:</b>&nbsp;&nbsp; %{customdata[0]:,.4f}<br>" +
-            "<b>Δ % from Prev Day:</b>&nbsp;&nbsp; %{customdata[1]:+,.2f}%<extra></extra>"
+            "<b>Δ % from Selected Compared Day:</b>&nbsp;&nbsp; %{customdata[1]:+,.2f}%<extra></extra>"
         )
     
         bars_base = go.Bar(
