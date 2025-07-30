@@ -458,28 +458,40 @@ with tab2:
     
         available_dates = sorted(df["date"].dt.date.unique(), reverse=True)
         st.markdown("### XRP Distribution by Account Balance Range (Bar Chart)")
+        # --- Primary date (main chart) dropdown
         sel_date = st.selectbox(
             "📅 Select Date for XRP Distribution Chart:",
             available_dates,
             0,
             key="date_bar_chart"
         )
-        df_br = df[df["date"].dt.date == sel_date].copy()
+        
+        # --- By default, set compare_date to the previous available date
         prev_dates = [d for d in available_dates if d < sel_date]
-        prior_date = max(prev_dates) if prev_dates else None
-    
-        prev_date_str = prior_date.strftime("%Y-%m-%d") if prior_date else "N/A"
+        default_compare_date = prev_dates[0] if prev_dates else sel_date
+        
+        # --- Secondary dropdown: pick any date for comparison
+        compare_date = st.selectbox(
+            "Compare to:",
+            available_dates,
+            available_dates.index(default_compare_date) if default_compare_date in available_dates else 0,
+            key="compare_date_bar_chart"
+        )
+        
+        # --- Prepare the dataframes for each date
+        df_br = df[df["date"].dt.date == sel_date].copy()
+        df_compare = df[df["date"].dt.date == compare_date].copy()
+        
         curr_date_str = sel_date.strftime("%Y-%m-%d")
-    
+        compare_date_str = compare_date.strftime("%Y-%m-%d")
         st.markdown(
             f'<div style="margin-bottom:10px;">'
             f'<span style="color:#aaa;">Date: <b>{curr_date_str}</b> '
-            f'(compared to {prev_date_str})</span>'
+            f'(compared to {compare_date_str})</span>'
             f'</div>',
             unsafe_allow_html=True
         )
-    
-        df_prev = df[df["date"].dt.date == prior_date].copy() if prior_date else None
+
     
         # ---- KEY FIX: ensure categorical index for both current and previous day ----
         df_br = df_br.set_index("Balance Range (XRP)").reindex(fixed_order)
@@ -487,16 +499,16 @@ with tab2:
         total_xrp = df_br["Sum in Range (XRP)"].sum()
         df_br["% of All XRP in Circulation"] = df_br["Sum in Range (XRP)"] / total_xrp * 100
     
-        if df_prev is not None and not df_prev.empty:
-            df_prev = df_prev.set_index("Balance Range (XRP)").reindex(fixed_order)
-            df_prev["Sum in Range (XRP)"] = pd.to_numeric(df_prev["Sum in Range (XRP)"].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
-            total_xrp_prev = df_prev["Sum in Range (XRP)"].sum()
-            df_prev["% of All XRP in Circulation"] = df_prev["Sum in Range (XRP)"] / total_xrp_prev * 100
-    
+        if df_compare is not None and not df_compare.empty:
+            df_compare = df_compare.set_index("Balance Range (XRP)").reindex(fixed_order)
+            df_compare["Sum in Range (XRP)"] = pd.to_numeric(df_compare["Sum in Range (XRP)"].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
+            total_xrp_compare = df_compare["Sum in Range (XRP)"].sum()
+            df_compare["% of All XRP in Circulation"] = df_compare["Sum in Range (XRP)"] / total_xrp_compare * 100
+        
             merged = pd.DataFrame({
                 "Sum in Range (XRP)": df_br["Sum in Range (XRP)"],
                 "% of All XRP in Circulation_today": df_br["% of All XRP in Circulation"],
-                "% of All XRP in Circulation_prev": df_prev["% of All XRP in Circulation"]
+                "% of All XRP in Circulation_prev": df_compare["% of All XRP in Circulation"]
             }, index=fixed_order).fillna(0)
         else:
             merged = pd.DataFrame({
@@ -504,6 +516,7 @@ with tab2:
                 "% of All XRP in Circulation_today": df_br["% of All XRP in Circulation"],
                 "% of All XRP in Circulation_prev": 0
             }, index=fixed_order).fillna(0)
+
         bar_labels = merged.index
         today_values = merged["% of All XRP in Circulation_today"].values
         prev_values = merged["% of All XRP in Circulation_prev"].values
