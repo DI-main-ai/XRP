@@ -468,6 +468,8 @@ with tab2:
                 0,
                 key="date_bar_chart"
             )
+        prev_dates = [d for d in available_dates if d < sel_date]
+        default_compare_date = max(prev_dates) if prev_dates else available_dates[0]
         
         with col2:
             compare_date = st.selectbox(
