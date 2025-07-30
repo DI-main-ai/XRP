@@ -459,24 +459,24 @@ with tab2:
         available_dates = sorted(df["date"].dt.date.unique(), reverse=True)
         st.markdown("### XRP Distribution by Account Balance Range (Bar Chart)")
         # --- Primary date (main chart) dropdown
-        sel_date = st.selectbox(
-            "📅 Select Date for XRP Distribution Chart:",
-            available_dates,
-            0,
-            key="date_bar_chart"
-        )
+        col1, spacer, col2 = st.columns([2, 0.5, 2])  # Change 0.5 to a larger number for more space
         
-        # --- By default, set compare_date to the previous available date
-        prev_dates = [d for d in available_dates if d < sel_date]
-        default_compare_date = prev_dates[0] if prev_dates else sel_date
+        with col1:
+            sel_date = st.selectbox(
+                "📅 Select Date for XRP Distribution Chart:",
+                available_dates,
+                0,
+                key="date_bar_chart"
+            )
         
-        # --- Secondary dropdown: pick any date for comparison
-        compare_date = st.selectbox(
-            "Compare to:",
-            available_dates,
-            available_dates.index(default_compare_date) if default_compare_date in available_dates else 0,
-            key="compare_date_bar_chart"
-        )
+        with col2:
+            compare_date = st.selectbox(
+                "Compare to:",
+                available_dates,
+                available_dates.index(default_compare_date) if default_compare_date in available_dates else 0,
+                key="compare_date_bar_chart"
+            )
+
         
         # --- Prepare the dataframes for each date
         df_br = df[df["date"].dt.date == sel_date].copy()
