@@ -417,7 +417,7 @@ with tab2:
                 categories=fixed_order,
                 ordered=True
             )
-            df = df.sort_values("Balance Range (XRP)", ascending=False)
+            df = df.sort_values("Balance Range (XRP)", ascending=True)
 
             calc_and_display_delta_table(
                 df,
