@@ -437,14 +437,7 @@ with tab2:
                 "20 - 500",
                 "0 - 20"
             ]
-            
-            # This ensures correct order, even if the CSV is not sorted
-            df["Balance Range (XRP)"] = pd.Categorical(
-                df["Balance Range (XRP)"],
-                categories=fixed_order,
-                ordered=True
-            )
-            df = df.sort_values("Balance Range (XRP)", ascending=False)
+            df = df.set_index("Balance Range (XRP)").reindex(fixed_order)
 
             calc_and_display_delta_table(
                 df,
