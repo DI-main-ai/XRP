@@ -417,6 +417,34 @@ with tab2:
                 .str.replace(' ', '', regex=False)
                 .astype(float)
             )
+            fixed_order = [
+                "1,000,000,000 - Infinity",
+                "500,000,000 - 1,000,000,000",
+                "100,000,000 - 500,000,000",
+                "20,000,000 - 100,000,000",
+                "10,000,000 - 20,000,000",
+                "5,000,000 - 10,000,000",
+                "1,000,000 - 5,000,000",
+                "500,000 - 1,000,000",
+                "100,000 - 500,000",
+                "75,000 - 100,000",
+                "50,000 - 75,000",
+                "25,000 - 50,000",
+                "10,000 - 25,000",
+                "5,000 - 10,000",
+                "1,000 - 5,000",
+                "500 - 1,000",
+                "20 - 500",
+                "0 - 20"
+            ]
+            
+            # This ensures correct order, even if the CSV is not sorted
+            df["Balance Range (XRP)"] = pd.Categorical(
+                df["Balance Range (XRP)"],
+                categories=fixed_order,
+                ordered=True
+            )
+            df = df.sort_values("Balance Range (XRP)", ascending=False)
 
             calc_and_display_delta_table(
                 df,
