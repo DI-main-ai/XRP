@@ -390,7 +390,27 @@ with tab2:
         try:
             df["Sum in Range (XRP)"] = pd.to_numeric(df["Sum in Range (XRP)"].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
             df["Accounts"] = pd.to_numeric(df["Accounts"].astype(str).str.replace(',', ''), errors='coerce').fillna(0).astype(int)
-
+            fixed_order = [
+                "1,000,000,000 - Infinity",
+                "500,000,000 - 1,000,000,000",
+                "100,000,000 - 500,000,000",
+                "20,000,000 - 100,000,000",
+                "10,000,000 - 20,000,000",
+                "5,000,000 - 10,000,000",
+                "1,000,000 - 5,000,000",
+                "500,000 - 1,000,000",
+                "100,000 - 500,000",
+                "75,000 - 100,000",
+                "50,000 - 75,000",
+                "25,000 - 50,000",
+                "10,000 - 25,000",
+                "5,000 - 10,000",
+                "1,000 - 5,000",
+                "500 - 1,000",
+                "20 - 500",
+                "0 - 20"
+            ]
+            df = df.set_index("Balance Range (XRP)").reindex(fixed_order)
             calc_and_display_delta_table(
                 df,
                 id_col="Balance Range (XRP)",
@@ -417,27 +437,7 @@ with tab2:
                 .str.replace(' ', '', regex=False)
                 .astype(float)
             )
-            fixed_order = [
-                "1,000,000,000 - Infinity",
-                "500,000,000 - 1,000,000,000",
-                "100,000,000 - 500,000,000",
-                "20,000,000 - 100,000,000",
-                "10,000,000 - 20,000,000",
-                "5,000,000 - 10,000,000",
-                "1,000,000 - 5,000,000",
-                "500,000 - 1,000,000",
-                "100,000 - 500,000",
-                "75,000 - 100,000",
-                "50,000 - 75,000",
-                "25,000 - 50,000",
-                "10,000 - 25,000",
-                "5,000 - 10,000",
-                "1,000 - 5,000",
-                "500 - 1,000",
-                "20 - 500",
-                "0 - 20"
-            ]
-            df = df.set_index("Balance Range (XRP)").reindex(fixed_order)
+
 
             calc_and_display_delta_table(
                 df,
@@ -451,6 +451,7 @@ with tab2:
             st.error(f"Table 2 error: {e}")
     else:
         st.info("current_stats_percent_history.csv not found.")
+        
     # ---Bar Chart: Sum in Range (XRP) by Balance Range (XRP) ---    
     if os.path.exists(ACCOUNTS_CSV):
         df = pd.read_csv(ACCOUNTS_CSV)
