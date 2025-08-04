@@ -379,7 +379,9 @@ with tab2:
         display_summary['Δ vs Prior Day (100K+)'] = display_summary['Δ vs Prior Day (100K+)'].map(signed_number)
         display_summary = display_summary.sort_values('Date', ascending=False).reset_index(drop=True)
 
-
+        # === Filter to dates >= 2025-07-04 ===
+        display_summary = display_summary[display_summary['Date'] >= pd.to_datetime('2025-07-04').date()]
+        
         st.markdown("### 🦈 Whale Wallet Count Summary (by Day)")
         st.caption("Sum of all XRP wallets holding at least 1,000,000 XRP or 100,000 XRP. Shows daily totals and change from the previous day.")
         st.dataframe(display_summary, use_container_width=True)
@@ -860,3 +862,4 @@ with tab1:
 st.sidebar.markdown("---")
 st.sidebar.markdown("💡 **Like this project?**")
 st.sidebar.markdown("Send XRP tips to: `YOUR_XRP_WALLET_ADDRESS`")
+
