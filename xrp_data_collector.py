@@ -10,7 +10,7 @@ from datetime import datetime
 CSV_FOLDER = "csv"
 os.makedirs(CSV_FOLDER, exist_ok=True)
 
-url = 'https://rich-list.info/'
+url = 'https://rich-list.info/stats'
 headers = {"User-Agent": "Mozilla/5.0"}
 
 # Step 1: Fetch the page and parse with BeautifulSoup
