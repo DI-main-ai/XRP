@@ -2,6 +2,7 @@ name: Update XRP Data
 
 on:
   schedule:
+    - cron: "0 3 * * *"  # daily at 3am UTC
     - cron: '0 7 * * *'
     - cron: '0 2 * * *' # 17:00 UTC = 12:00 PM (noon) Central Time
     - cron: '0 17 * * *' # 17:00 UTC = 12:00 PM (noon) Central Time
@@ -9,29 +10,29 @@ on:
   workflow_dispatch:
 
 jobs:
-  scrape-and-update:
+  update:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
+
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Setup Python
+        uses: actions/setup-python@v4
         with:
-          python-version: '3.x'
+          python-version: "3.10"
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+      - name: Install deps
+        run: pip install pandas requests
 
-      - name: Run data collection script
-        run: python xrp_data_collector.py
+      - name: Run collector
+        run: python xrpl_data_collector.py
 
-      - name: Commit and push new/updated CSVs
+      - name: Commit data
         run: |
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git config --global user.name "github-actions[bot]"
-          git add csv/*.csv csv/last_updated.txt || true
-          git commit -m "Daily XRP data update [skip ci]" || echo "No changes to commit"
-          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+          git config --global user.name "github-actions"
+          git config --global user.email "actions@github.com"
+
+          git add data/
+          git commit -m "Update XRP rich list" || echo "No changes"
+          git push
