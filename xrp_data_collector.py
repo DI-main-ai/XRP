@@ -1,6 +1,8 @@
+import json
 import math
+import os
 import time
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -8,8 +10,8 @@ import requests
 
 RPC_URL = "https://xrplcluster.com"
 CSV_DIR = Path("csv")
+LEDGER_CACHE_PATH = CSV_DIR / "_ledger_date_cache.json"
 
-# These labels/file stems match your existing repo structure.
 RANGE_SPECS = [
     {"label": "0 - 20", "stem": "0_-_20", "lower": 0, "upper": 20},
     {"label": "20 - 500", "stem": "20_-_500", "lower": 20, "upper": 500},
@@ -32,6 +34,10 @@ RANGE_SPECS = [
 ]
 
 PERCENT_THRESHOLDS = [0.01, 0.10, 0.20, 0.50, 1, 2, 3, 4, 5, 10]
+
+
+def truthy(value: str) -> bool:
+    return str(value).strip().lower() in {"1", "true", "yes", "y", "on"}
 
 
 def xrpl_request(method, params=None, max_retries=6):
@@ -61,7 +67,11 @@ def xrpl_request(method, params=None, max_retries=6):
     raise RuntimeError(f"Failed XRPL request for {method}") from last_exc
 
 
-def get_validated_ledger_ref():
+def parse_iso_utc(iso_str: str) -> datetime:
+    return datetime.fromisoformat(iso_str.replace("Z", "+00:00")).astimezone(timezone.utc)
+
+
+def get_latest_validated_ledger():
     result = xrpl_request("server_info")
     info = result.get("info", result)
     validated = info.get("validated_ledger") or result.get("validated_ledger")
@@ -73,14 +83,107 @@ def get_validated_ledger_ref():
     if ledger_hash is None or ledger_index is None:
         raise RuntimeError(f"Could not read validated ledger hash/index from response: {validated}")
 
-    return ledger_hash, int(ledger_index)
+    header = get_ledger_header(int(ledger_index))
+    return {
+        "ledger_hash": ledger_hash,
+        "ledger_index": int(ledger_index),
+        "close_time_iso": header["close_time_iso"],
+        "close_dt": header["close_dt"],
+    }
 
 
-def fetch_all_balances_drops():
-    print("Fetching ledger snapshot from XRPL...")
-    ledger_hash, ledger_index = get_validated_ledger_ref()
-    print(f"Using validated ledger {ledger_index} ({ledger_hash})")
+def get_ledger_header(ledger_index: int):
+    result = xrpl_request(
+        "ledger",
+        {
+            "ledger_index": int(ledger_index),
+            "transactions": False,
+            "expand": False,
+            "binary": False,
+        },
+    )
 
+    ledger = result.get("ledger")
+    if not ledger:
+        raise RuntimeError(f"No ledger object returned for ledger_index={ledger_index}")
+
+    close_time_iso = ledger["close_time_iso"]
+    return {
+        "ledger_index": int(ledger["ledger_index"]),
+        "ledger_hash": ledger["ledger_hash"],
+        "close_time_iso": close_time_iso,
+        "close_dt": parse_iso_utc(close_time_iso),
+    }
+
+
+def load_ledger_cache():
+    if not LEDGER_CACHE_PATH.exists():
+        return {}
+    try:
+        return json.loads(LEDGER_CACHE_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def save_ledger_cache(cache):
+    LEDGER_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    LEDGER_CACHE_PATH.write_text(json.dumps(cache, indent=2, sort_keys=True), encoding="utf-8")
+
+
+def find_ledger_for_day(day: date, latest_header=None, low_hint=1, high_hint=None):
+    """
+    Find the last validated ledger whose close time is <= day 23:59:59 UTC.
+    """
+    cache = load_ledger_cache()
+    key = day.isoformat()
+    if key in cache:
+        cached = cache[key]
+        print(f"Using cached ledger for {key}: {cached['ledger_index']}")
+        return {
+            "ledger_index": int(cached["ledger_index"]),
+            "ledger_hash": cached["ledger_hash"],
+            "close_time_iso": cached["close_time_iso"],
+            "close_dt": parse_iso_utc(cached["close_time_iso"]),
+        }
+
+    if latest_header is None:
+        latest_header = get_latest_validated_ledger()
+
+    target_dt = datetime(day.year, day.month, day.day, 23, 59, 59, tzinfo=timezone.utc)
+
+    if target_dt >= latest_header["close_dt"]:
+        result = latest_header
+    else:
+        lo = max(1, int(low_hint))
+        hi = int(high_hint or latest_header["ledger_index"])
+        best = None
+
+        while lo <= hi:
+            mid = (lo + hi) // 2
+            header = get_ledger_header(mid)
+
+            if header["close_dt"] <= target_dt:
+                best = header
+                lo = mid + 1
+            else:
+                hi = mid - 1
+
+        if best is None:
+            raise RuntimeError(f"Could not find a ledger for {key}")
+
+        result = best
+
+    cache[key] = {
+        "ledger_index": int(result["ledger_index"]),
+        "ledger_hash": result["ledger_hash"],
+        "close_time_iso": result["close_time_iso"],
+    }
+    save_ledger_cache(cache)
+    return result
+
+
+def fetch_all_balances_drops(ledger_hash: str, ledger_index: int):
+    print(f"Fetching AccountRoot state from ledger {ledger_index} ({ledger_hash})...")
     marker = None
     balances = []
     page = 0
@@ -106,20 +209,19 @@ def fetch_all_balances_drops():
         page += 1
 
         if page % 250 == 0:
-            print(f"Pages: {page} | Accounts collected: {len(balances)}")
+            print(f"Pages: {page} | Accounts collected: {len(balances):,}")
 
         if not marker:
             break
 
-        # Light throttle so we are not slamming the public cluster.
         time.sleep(0.05)
 
     if not balances:
         raise RuntimeError("No AccountRoot balances were collected from the ledger.")
 
-    balance_series = pd.Series(balances, dtype="int64").sort_values(ascending=False, ignore_index=True)
-    print(f"Collected {len(balance_series):,} accounts.")
-    return balance_series, ledger_index
+    series = pd.Series(balances, dtype="int64").sort_values(ascending=False, ignore_index=True)
+    print(f"Collected {len(series):,} accounts from ledger {ledger_index}.")
+    return series
 
 
 def format_threshold_label(threshold):
@@ -242,15 +344,9 @@ def write_last_updated(snapshot_ts):
     print(f"Wrote {path}")
 
 
-def main():
-    snapshot_ts = datetime.now(timezone.utc)
-    snapshot_date = snapshot_ts.strftime("%Y-%m-%d")
-
-    balance_drops, ledger_index = fetch_all_balances_drops()
-    print(f"Building CSV outputs for {snapshot_date} using ledger {ledger_index}...")
-
-    accounts_history = build_accounts_history(balance_drops, snapshot_date)
-    percent_history = build_percent_history(balance_drops, snapshot_date)
+def write_snapshot_for_date(snapshot_date_str, balance_drops):
+    accounts_history = build_accounts_history(balance_drops, snapshot_date_str)
+    percent_history = build_percent_history(balance_drops, snapshot_date_str)
 
     write_history_csv(
         CSV_DIR / "current_stats_accounts_history.csv",
@@ -263,11 +359,113 @@ def main():
         key_cols=["date", "Threshold (%)"],
     )
 
-    write_range_series_files(balance_drops, snapshot_date)
-    write_historic_wallet_count(balance_drops, snapshot_date)
-    write_last_updated(snapshot_ts)
+    write_range_series_files(balance_drops, snapshot_date_str)
+    write_historic_wallet_count(balance_drops, snapshot_date_str)
 
-    print("Done.")
+
+def get_existing_snapshot_dates():
+    path = CSV_DIR / "current_stats_accounts_history.csv"
+    if not path.exists():
+        return set()
+
+    try:
+        df = pd.read_csv(path, usecols=["date"])
+        return set(pd.to_datetime(df["date"]).dt.strftime("%Y-%m-%d").unique())
+    except Exception:
+        return set()
+
+
+def parse_env_date(name):
+    value = os.getenv(name, "").strip()
+    if not value:
+        return None
+    return datetime.strptime(value, "%Y-%m-%d").date()
+
+
+def daterange(start_day: date, end_day: date):
+    cur = start_day
+    while cur <= end_day:
+        yield cur
+        cur += timedelta(days=1)
+
+
+def resolve_run_dates(today_utc: date):
+    start = parse_env_date("BACKFILL_START")
+    end = parse_env_date("BACKFILL_END")
+    auto_gap = truthy(os.getenv("AUTO_BACKFILL_GAP", "false"))
+    skip_existing = not truthy(os.getenv("BACKFILL_INCLUDE_EXISTING", "false"))
+
+    existing_dates = get_existing_snapshot_dates()
+
+    if start or end or auto_gap:
+        if auto_gap and not (start or end):
+            if existing_dates:
+                latest_existing = max(datetime.strptime(d, "%Y-%m-%d").date() for d in existing_dates)
+                start = latest_existing + timedelta(days=1)
+            else:
+                raise RuntimeError("AUTO_BACKFILL_GAP was requested, but no existing history file was found.")
+            end = today_utc - timedelta(days=1)
+        else:
+            if start is None or end is None:
+                raise RuntimeError("BACKFILL_START and BACKFILL_END must both be provided in YYYY-MM-DD format.")
+
+        if end < start:
+            raise RuntimeError("BACKFILL_END cannot be earlier than BACKFILL_START.")
+
+        days = [d for d in daterange(start, end)]
+        if skip_existing:
+            days = [d for d in days if d.isoformat() not in existing_dates]
+
+        return "backfill", days
+
+    return "live", [today_utc]
+
+
+def process_live_day(today_utc: date):
+    latest = get_latest_validated_ledger()
+    balances = fetch_all_balances_drops(latest["ledger_hash"], latest["ledger_index"])
+    write_snapshot_for_date(today_utc.isoformat(), balances)
+    write_last_updated(datetime.now(timezone.utc))
+    print(f"Live update complete for {today_utc.isoformat()} using ledger {latest['ledger_index']}.")
+
+
+def process_backfill_days(days):
+    if not days:
+        print("No dates to backfill.")
+        return
+
+    latest = get_latest_validated_ledger()
+    low_hint = 1
+
+    for idx, day in enumerate(days, start=1):
+        print(f"\n=== Backfill {idx}/{len(days)}: {day.isoformat()} ===")
+        header = find_ledger_for_day(day, latest_header=latest, low_hint=low_hint, high_hint=latest["ledger_index"])
+        print(
+            f"Chosen ledger {header['ledger_index']} for {day.isoformat()} "
+            f"(closed {header['close_time_iso']})"
+        )
+
+        balances = fetch_all_balances_drops(header["ledger_hash"], header["ledger_index"])
+        write_snapshot_for_date(day.isoformat(), balances)
+
+        low_hint = header["ledger_index"]
+
+    write_last_updated(datetime.now(timezone.utc))
+    print("Backfill complete.")
+
+
+def main():
+    CSV_DIR.mkdir(parents=True, exist_ok=True)
+    today_utc = datetime.now(timezone.utc).date()
+
+    mode, days = resolve_run_dates(today_utc)
+    print(f"Mode: {mode}")
+    print(f"Dates to process: {[d.isoformat() for d in days]}")
+
+    if mode == "live":
+        process_live_day(days[0])
+    else:
+        process_backfill_days(days)
 
 
 if __name__ == "__main__":
