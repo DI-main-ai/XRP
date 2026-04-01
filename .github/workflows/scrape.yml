@@ -1,13 +1,15 @@
 name: Update XRP Data
 
 on:
-  schedule:
-    - cron: "0 3 * * *"  # daily at 3am UTC
-    - cron: '0 7 * * *'
-    - cron: '0 2 * * *' # 17:00 UTC = 12:00 PM (noon) Central Time
-    - cron: '0 17 * * *' # 17:00 UTC = 12:00 PM (noon) Central Time
-    - cron: '0 23 * * *' # 17:00 UTC = 12:00 PM (noon) Central Time
   workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * *"
+    - cron: "0 7 * * *"
+    - cron: "0 17 * * *"
+    - cron: "0 23 * * *"
+
+permissions:
+  contents: write
 
 jobs:
   update:
@@ -15,24 +17,44 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
 
       - name: Setup Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v6
         with:
           python-version: "3.10"
+          cache: "pip"
 
-      - name: Install deps
-        run: pip install pandas requests
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Syntax check collector
+        run: python -m py_compile xrp_data_collector.py
+
+      - name: Smoke test XRPL endpoint
+        run: |
+          python - <<'PY'
+          import requests
+          payload = {
+              "method": "server_info",
+              "params": [{"api_version": 2}]
+          }
+          r = requests.post("https://xrplcluster.com", json=payload, timeout=30)
+          print("HTTP", r.status_code)
+          print(r.text[:500])
+          r.raise_for_status()
+          PY
 
       - name: Run collector
-        run: python xrpl_data_collector.py
+        run: python xrp_data_collector.py
 
-      - name: Commit data
+      - name: Commit CSV updates
         run: |
-          git config --global user.name "github-actions"
-          git config --global user.email "actions@github.com"
-
-          git add data/
-          git commit -m "Update XRP rich list" || echo "No changes"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add csv/
+          git diff --cached --quiet && echo "No changes to commit" && exit 0
+          git commit -m "Update XRP data"
           git push
