@@ -1,0 +1,38 @@
+
+name: Update XRP Data
+
+on:
+  schedule:
+    - cron: '0 7 * * *'
+    - cron: '0 2 * * *' # 17:00 UTC = 12:00 PM (noon) Central Time
+    - cron: '0 17 * * *' # 17:00 UTC = 12:00 PM (noon) Central Time
+    - cron: '0 23 * * *' # 17:00 UTC = 12:00 PM (noon) Central Time
+  workflow_dispatch:
+
+jobs:
+  scrape-and-update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run data collection script
+        run: python xrp_data_collector.py
+
+      - name: Commit and push new/updated CSVs
+        run: |
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+          git add csv/*.csv csv/last_updated.txt || true
+          git commit -m "Daily XRP data update [skip ci]" || echo "No changes to commit"
+          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
